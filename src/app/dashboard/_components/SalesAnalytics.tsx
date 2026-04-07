@@ -7,8 +7,8 @@ import { fmt } from './KpiCard';
 type Props = { data: any };
 
 const CAT_COLORS: Record<string, string> = {
-  Botox: '#3b82f6', Filler: '#8b5cf6', 'Skin quality': '#ec4899',
-  SkinQuality: '#ec4899', EBD: '#22c55e', Surgery: '#ef4444', Other: '#f59e0b',
+  Botox: '#4F46E5', Filler: '#7C3AED', 'Skin quality': '#EC4899',
+  SkinQuality: '#EC4899', EBD: '#10B981', Surgery: '#E11D48', Other: '#D4A853',
 };
 const CAT_BADGE: Record<string, string> = {
   Botox: 'bg-blue-100 text-blue-700', Filler: 'bg-purple-100 text-purple-700',

@@ -4,7 +4,7 @@ import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Cart
 import { fmt } from './KpiCard';
 
 type Props = { data: any };
-const COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#f97316', '#8b5cf6', '#ec4899'];
+const COLORS = ['#4F46E5', '#7C3AED', '#10B981', '#D4A853', '#EC4899', '#E11D48'];
 
 export default function CustomerInsights({ data }: Props) {
   const { newRegistrationsByMonth, customerTypeDistribution, acquisitionSource, visitFrequency, topPatients } = data;
@@ -56,7 +56,7 @@ export default function CustomerInsights({ data }: Props) {
               <XAxis dataKey="source" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} />
               <Tooltip />
-              <Bar dataKey="count" fill="#3b82f6" radius={[3, 3, 0, 0]} name="Patients" />
+              <Bar dataKey="count" fill="#4F46E5" radius={[3, 3, 0, 0]} name="Patients" />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -68,7 +68,7 @@ export default function CustomerInsights({ data }: Props) {
               <XAxis dataKey="range" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} />
               <Tooltip />
-              <Bar dataKey="count" fill="#22c55e" radius={[3, 3, 0, 0]} name="Patients" />
+              <Bar dataKey="count" fill="#10B981" radius={[3, 3, 0, 0]} name="Patients" />
             </BarChart>
           </ResponsiveContainer>
         </div>

@@ -6,18 +6,18 @@ import KpiCard, { fmt, calcPct } from './KpiCard';
 import ExecutiveSummary from './ExecutiveSummary';
 
 type Props = { data: any };
-const DOCTOR_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#f97316', '#8b5cf6'];
+const DOCTOR_COLORS = ['#4F46E5', '#7C3AED', '#10B981', '#D4A853', '#EC4899'];
 
 export default function ExecutiveOverview({ data }: Props) {
   const { kpis, revenueTrend, topTreatments, topDoctors } = data;
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-        <KpiCard icon={<DollarSign size={20} />} label="Revenue Today" value={fmt(kpis.revenueToday)} change={calcPct(kpis.revenueToday, kpis.prevMonthRevenue / 30)} iconBg="bg-blue-50" iconColor="text-blue-600" />
-        <KpiCard icon={<TrendingUp size={20} />} label="Monthly Revenue" value={fmt(kpis.monthlyRevenue)} change={calcPct(kpis.monthlyRevenue, kpis.prevMonthRevenue)} iconBg="bg-green-50" iconColor="text-green-600" />
-        <KpiCard icon={<Users size={20} />} label="New Customers" value={String(kpis.newCustomers)} change={calcPct(kpis.newCustomers, kpis.prevNewCustomers)} iconBg="bg-amber-50" iconColor="text-amber-600" />
-        <KpiCard icon={<UserCheck size={20} />} label="Returning" value={String(kpis.returning)} change={calcPct(kpis.returning, kpis.prevReturning)} positiveUp={false} iconBg="bg-purple-50" iconColor="text-purple-600" />
-        <KpiCard icon={<Target size={20} />} label="Conversion" value={`${kpis.conversionRate.toFixed(1)}%`} iconBg="bg-red-50" iconColor="text-red-500" />
+        <KpiCard icon={<DollarSign size={20} />} label="Revenue Today" value={fmt(kpis.revenueToday)} change={calcPct(kpis.revenueToday, kpis.prevMonthRevenue / 30)} iconBg="#EEF2FF" iconColor="#4F46E5" num={1} />
+        <KpiCard icon={<TrendingUp size={20} />} label="Monthly Revenue" value={fmt(kpis.monthlyRevenue)} change={calcPct(kpis.monthlyRevenue, kpis.prevMonthRevenue)} iconBg="#F5F3FF" iconColor="#7C3AED" num={2} />
+        <KpiCard icon={<Users size={20} />} label="New Customers" value={String(kpis.newCustomers)} change={calcPct(kpis.newCustomers, kpis.prevNewCustomers)} iconBg="#ECFDF5" iconColor="#059669" num={3} />
+        <KpiCard icon={<UserCheck size={20} />} label="Returning" value={String(kpis.returning)} change={calcPct(kpis.returning, kpis.prevReturning)} positiveUp={false} iconBg="#FFFBEB" iconColor="#D97706" num={4} />
+        <KpiCard icon={<Target size={20} />} label="Conversion" value={`${kpis.conversionRate.toFixed(1)}%`} iconBg="#FFF1F2" iconColor="#E11D48" num={5} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -29,7 +29,7 @@ export default function ExecutiveOverview({ data }: Props) {
               <XAxis dataKey="month" tick={{ fontSize: 11 }} />
               <YAxis tickFormatter={v => `฿${v >= 1000 ? Math.round(v / 1000) + 'k' : v}`} tick={{ fontSize: 11 }} />
               <Tooltip formatter={(v) => [fmt(Number(v ?? 0)), "Revenue"]} />
-              <Line type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4, fill: '#3b82f6' }} />
+              <Line type="monotone" dataKey="revenue" stroke="#4F46E5" strokeWidth={2.5} dot={{ r: 4, fill: '#4F46E5' }} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -42,7 +42,7 @@ export default function ExecutiveOverview({ data }: Props) {
               <XAxis type="number" tickFormatter={v => `฿${Math.round(v / 1000)}k`} tick={{ fontSize: 10 }} />
               <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={90} />
               <Tooltip formatter={(v) => [fmt(Number(v ?? 0)), "Revenue"]} />
-              <Bar dataKey="revenue" fill="#3b82f6" radius={[0, 3, 3, 0]} />
+              <Bar dataKey="revenue" fill="#4F46E5" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
