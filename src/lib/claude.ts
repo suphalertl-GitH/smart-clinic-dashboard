@@ -1,27 +1,31 @@
-// Claude API client สำหรับ Enterprise tier features
-const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages';
+// Groq API client สำหรับ AI Summary features
+const GROQ_API = 'https://api.groq.com/openai/v1/chat/completions';
 
 export async function claudeComplete(prompt: string, systemPrompt?: string): Promise<string> {
-  const res = await fetch(ANTHROPIC_API, {
+  const res = await fetch(GROQ_API, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': process.env.ANTHROPIC_API_KEY!,
-      'anthropic-version': '2023-06-01',
+      'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
+      model: 'llama-3.3-70b-versatile',
       max_tokens: 2048,
-      system: systemPrompt ?? 'คุณคือที่ปรึกษาคลินิกความงามชั้นนำ วิเคราะห์ข้อมูลและให้คำแนะนำเป็นภาษาไทย',
-      messages: [{ role: 'user', content: prompt }],
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt ?? 'คุณคือที่ปรึกษาคลินิกความงามชั้นนำ วิเคราะห์ข้อมูลและให้คำแนะนำเป็นภาษาไทย',
+        },
+        { role: 'user', content: prompt },
+      ],
     }),
   });
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`Claude API error: ${err}`);
+    throw new Error(`Groq API error: ${err}`);
   }
 
   const data = await res.json();
-  return data.content[0].text;
+  return data.choices[0].message.content;
 }
