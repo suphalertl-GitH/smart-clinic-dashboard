@@ -1,0 +1,29 @@
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+
+// Lazy initialization — ป้องกัน build crash เมื่อ env vars ยังไม่ได้ตั้งค่า
+let _client: SupabaseClient | null = null;
+let _admin: SupabaseClient | null = null;
+
+export function getSupabase(): SupabaseClient {
+  if (!_client) {
+    _client = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+  }
+  return _client;
+}
+
+export function getSupabaseAdmin(): SupabaseClient {
+  if (!_admin) {
+    _admin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+  }
+  return _admin;
+}
+
+// Convenience exports (backward compat)
+export const supabase = new Proxy({} as SupabaseClient, { get: (_, prop) => (getSupabase() as any)[prop] });
+export const supabaseAdmin = new Proxy({} as SupabaseClient, { get: (_, prop) => (getSupabaseAdmin() as any)[prop] });
