@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { pushMessage, appointmentReminderFlex } from '@/lib/line';
+import { pushMessage, pushGroupMessage, appointmentReminderFlex, textMessage } from '@/lib/line';
 
 const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
 const CLINIC = { name: 'พลอยใสคลินิก', phone: '065-553-9361' };
@@ -93,6 +93,14 @@ export async function GET(req: NextRequest) {
         });
       }
     }
+
+    // ส่งสรุปตารางพรุ่งนี้เข้า LINE Group
+    const total = appointments.length;
+    const lines = appointments.map(a => `  • ${a.time} น. — ${a.name}${a.procedure ? ` (${a.procedure})` : ''}`).join('\n');
+    const dateLabel = new Date(tomorrowStr).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+    await pushGroupMessage([textMessage(
+      `📋 ตารางนัดพรุ่งนี้ (${dateLabel})\nทั้งหมด ${total} คิว\n${lines}\n\nส่งแจ้งเตือนลูกค้าแล้ว ${sent} คน`
+    )]).catch(() => {});
 
     return NextResponse.json({ success: true, sent, errors, date: tomorrowStr });
   } catch (err: any) {

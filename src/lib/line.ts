@@ -21,6 +21,13 @@ export async function pushMessage(lineUserId: string, messages: LineMessage[]) {
   return linePost('push', { to: lineUserId, messages });
 }
 
+// ส่งข้อความเข้า LINE Group (แจ้ง admin/sales)
+export async function pushGroupMessage(messages: LineMessage[]) {
+  const groupId = process.env.LINE_GROUP_ID;
+  if (!groupId) return; // ถ้าไม่มี group id ก็ข้ามไปเงียบๆ
+  return linePost('push', { to: groupId, messages });
+}
+
 // ส่งข้อความพร้อมรูป (ใบเสร็จ)
 export function textMessage(text: string): LineMessage {
   return { type: 'text', text };

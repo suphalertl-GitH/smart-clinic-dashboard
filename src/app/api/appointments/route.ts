@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { pushGroupMessage, textMessage } from '@/lib/line';
 
 const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
 
@@ -81,6 +82,14 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    // แจ้ง LINE Group
+    const salesTag = salesName ? ` (${salesName})` : '';
+    const procTag = procedure ? ` — ${procedure}` : '';
+    pushGroupMessage([textMessage(
+      `📅 นัดใหม่${salesTag}\n👤 ${name}  📞 ${phone}\n🕐 ${date} ${time} น.${procTag}`
+    )]).catch(() => {}); // fire-and-forget
+
     return NextResponse.json({ success: true, appointment: data, message: `บันทึกคิวคุณ ${name} สำเร็จ ✅` });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
