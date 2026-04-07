@@ -30,8 +30,8 @@ export default function RegisterPage() {
   // Load initial data
   useEffect(() => {
     Promise.all([
-      fetch('/api/patients/next-hn').then(r => r.ok ? r.json() : {}),
-      fetch('/api/settings').then(r => r.ok ? r.json() : {}),
+      fetch('/api/patients/next-hn').then(r => r.ok ? r.json() : { hn: 'HN00001' }),
+      fetch('/api/settings').then(r => r.ok ? r.json() : { sales_names: [] }),
     ]).then(([hnData, settings]) => {
       setInitialData({ hn: hnData.hn ?? 'HN00001', sales: settings.sales_names ?? [] });
       setLoading(false);
