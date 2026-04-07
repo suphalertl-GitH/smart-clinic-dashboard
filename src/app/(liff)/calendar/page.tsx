@@ -260,10 +260,10 @@ export default function CalendarPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/settings').then(r => r.ok ? r.json() : {}),
+      fetch('/api/settings').then(r => r.ok ? r.json() : null),
       fetch('/api/patients').then(r => r.ok ? r.json() : []),
     ]).then(([s, p]) => {
-      setSettings(s);
+      if (s) setSettings(s);
       setPatients(Array.isArray(p) ? p : []);
     }).catch(() => {});
   }, []);
