@@ -3,13 +3,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Activity, RefreshCw, LayoutDashboard, BarChart2, Users,
-  Megaphone, Stethoscope, Bell, Search, LogOut, HeartPulse, Brain,
+  Megaphone, Stethoscope, Bell, Search, LogOut, HeartPulse, Brain, Tag,
 } from 'lucide-react';
 import ExecutiveOverview from './_components/ExecutiveOverview';
 import SalesAnalytics from './_components/SalesAnalytics';
 import CustomerInsights from './_components/CustomerInsights';
 import CrmInsights from './_components/CrmInsights';
 import PredictiveDashboard from './_components/PredictiveDashboard';
+import PromotionsManager from './_components/PromotionsManager';
 import { MOCK_DASHBOARD } from '@/lib/mock-dashboard';
 
 // ── Theme Definitions ─────────────────────────────────────────
@@ -26,13 +27,14 @@ const THEMES: Record<ThemeKey, { bg: string; bgDark: string; accent: string; gra
 };
 
 // ── Nav items ─────────────────────────────────────────────────
-type NavId = 'overview' | 'sales' | 'customers' | 'crm' | 'predictive';
+type NavId = 'overview' | 'sales' | 'customers' | 'crm' | 'promotions' | 'predictive';
 const NAV: { id: NavId; label: string; icon: React.FC<any>; badge?: string }[] = [
-  { id: 'overview',   label: 'แดชบอร์ด',          icon: LayoutDashboard },
-  { id: 'sales',      label: 'Sales Analytics',   icon: BarChart2 },
-  { id: 'customers',  label: 'Customer Insights', icon: Users },
-  { id: 'crm',        label: 'CRM & Campaigns',   icon: Megaphone },
-  { id: 'predictive', label: 'Predictive AI',      icon: Brain, badge: 'Enterprise' },
+  { id: 'overview',    label: 'แดชบอร์ด',          icon: LayoutDashboard },
+  { id: 'sales',       label: 'Sales Analytics',   icon: BarChart2 },
+  { id: 'customers',   label: 'Customer Insights', icon: Users },
+  { id: 'crm',         label: 'CRM & Campaigns',   icon: Megaphone },
+  { id: 'promotions',  label: 'Promotions',         icon: Tag },
+  { id: 'predictive',  label: 'Predictive AI',      icon: Brain, badge: 'Enterprise' },
 ];
 const DISABLED_NAV = [
   { label: 'แพทย์', icon: Stethoscope },
@@ -44,6 +46,7 @@ const PAGE_TITLE: Record<NavId, string> = {
   sales:      'Sales Analytics',
   customers:  'Customer Insights',
   crm:        'CRM & Campaigns',
+  promotions: 'Promotions',
   predictive: 'Predictive Analytics',
 };
 
@@ -266,6 +269,7 @@ export default function DashboardPage() {
               {activeNav === 'sales'       && <SalesAnalytics data={dashData} />}
               {activeNav === 'customers'   && <CustomerInsights data={dashData} />}
               {activeNav === 'crm'         && <CrmInsights />}
+              {activeNav === 'promotions'  && <PromotionsManager />}
               {activeNav === 'predictive'  && <PredictiveDashboard />}
             </>
           ) : (
