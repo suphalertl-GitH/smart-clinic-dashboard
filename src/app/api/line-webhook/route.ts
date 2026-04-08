@@ -282,10 +282,25 @@ async function handleTextMessage(event: any) {
     }
     const time = timeMatch[1];
     const date = (session.data as any).date;
-    await setSession(userId, 'waiting_confirm', { date, time });
+    await setSession(userId, 'waiting_treatment', { ...session.data, date, time });
+
+    const TREATMENT_LIST = ['Botox', 'Filler', 'Sculptra', 'Profhilo', 'Juvelook', 'Rejuran', 'Ultherapy', 'Ultraformer', 'Oligio', 'Fat dissolve', 'IV Drip', 'Hair', 'อื่นๆ'];
+    return reply(replyToken, [
+      { type: 'text', text: `เลือกเวลา ${time} น. แล้วค่ะ 👍\nต้องการมาใช้บริการอะไรคะ?` },
+      quickReply(TREATMENT_LIST.map(t => ({ label: t, text: t }))),
+    ]);
+  }
+
+  // ── STEP: waiting_treatment ───────────────────────────────
+  if (session.step === 'waiting_treatment') {
+    const treatment = text;
+    const { date, time } = session.data as any;
+    await setSession(userId, 'waiting_confirm', { ...session.data, date, time, treatment });
+    const name = patient?.full_name ?? (session.data as any).name ?? '';
+    const nameTag = name ? `คุณ${name}` : '';
     return reply(replyToken, [{
       type: 'text',
-      text: `ยืนยันนัดหมายค่ะ 📋\n📅 ${thaiDateLabel(date)}\n⏰ ${time} น.\n\nถูกต้องไหมคะ?`,
+      text: `สรุปนัดหมาย${nameTag ? ` ของ${nameTag}` : ''} 📋\n📅 ${thaiDateLabel(date)}\n⏰ ${time} น.\n💉 ${treatment}\n\nยืนยันถูกต้องไหมคะ?`,
       quickReply: {
         items: [
           { type: 'action', action: { type: 'message', label: '✅ ยืนยัน', text: 'ยืนยัน' } },
@@ -298,7 +313,7 @@ async function handleTextMessage(event: any) {
   // ── STEP: waiting_confirm ─────────────────────────────────
   if (session.step === 'waiting_confirm') {
     if (lower === 'ยืนยัน' || lower === 'ใช่' || lower === 'ok' || lower === 'โอเค') {
-      const { date, time } = session.data as any;
+      const { date, time, treatment } = session.data as any;
 
       // ดึงข้อมูลคนไข้
       const { data: patient } = await supabaseAdmin
@@ -317,7 +332,8 @@ async function handleTextMessage(event: any) {
         phone,
         date,
         time,
-        status: 'returning',
+        procedure: treatment ?? null,
+        status: hn ? 'returning' : 'new',
         line_user_id: userId,
         note: 'จองผ่าน LINE Chatbot',
       });
@@ -325,11 +341,11 @@ async function handleTextMessage(event: any) {
       // แจ้ง admin group
       const groupId = process.env.LINE_GROUP_ID;
       if (groupId) {
-        pushText(groupId, `📅 จองผ่าน LINE\n👤 ${name}  📞 ${phone}\n🕐 ${thaiDateLabel(date)} ${time} น.`).catch(() => {});
+        pushText(groupId, `📅 จองผ่าน LINE\n👤 ${name}  📞 ${phone}\n🕐 ${thaiDateLabel(date)} ${time} น.\n💉 ${treatment ?? '-'}`).catch(() => {});
       }
 
       await clearSession(userId);
-      return replyText(replyToken, `จองนัดเรียบร้อยแล้วค่ะ ✅\n📅 ${thaiDateLabel(date)}\n⏰ ${time} น.\n\nทีมงานจะติดต่อยืนยันอีกครั้งนะคะ 😊\nสอบถาม: ${CLINIC.phone}`);
+      return replyText(replyToken, `จองนัดเรียบร้อยแล้วค่ะ ✅\n📅 ${thaiDateLabel(date)}\n⏰ ${time} น.\n💉 ${treatment ?? '-'}\n\nทีมงานจะติดต่อยืนยันอีกครั้งนะคะ 😊\nสอบถาม: ${CLINIC.phone}`);
     } else {
       await clearSession(userId);
       return replyText(replyToken, 'ยกเลิกการจองแล้วค่ะ 😊\nหากต้องการนัดใหม่ พิมพ์ "จองนัด" ได้เลยนะคะ');
