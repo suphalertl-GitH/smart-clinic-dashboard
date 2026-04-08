@@ -3,12 +3,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Activity, RefreshCw, LayoutDashboard, BarChart2, Users,
-  Megaphone, Stethoscope, Bell, Search, LogOut, HeartPulse,
+  Megaphone, Stethoscope, Bell, Search, LogOut, HeartPulse, Brain,
 } from 'lucide-react';
 import ExecutiveOverview from './_components/ExecutiveOverview';
 import SalesAnalytics from './_components/SalesAnalytics';
 import CustomerInsights from './_components/CustomerInsights';
 import CrmInsights from './_components/CrmInsights';
+import PredictiveDashboard from './_components/PredictiveDashboard';
 import { MOCK_DASHBOARD } from '@/lib/mock-dashboard';
 
 // ── Theme Definitions ─────────────────────────────────────────
@@ -25,12 +26,13 @@ const THEMES: Record<ThemeKey, { bg: string; bgDark: string; accent: string; gra
 };
 
 // ── Nav items ─────────────────────────────────────────────────
-type NavId = 'overview' | 'sales' | 'customers' | 'crm';
-const NAV: { id: NavId; label: string; icon: React.FC<any> }[] = [
-  { id: 'overview',   label: 'แดชบอร์ด',       icon: LayoutDashboard },
-  { id: 'sales',      label: 'Sales Analytics', icon: BarChart2 },
-  { id: 'customers',  label: 'Customer Insights',icon: Users },
-  { id: 'crm',        label: 'CRM & Campaigns', icon: Megaphone },
+type NavId = 'overview' | 'sales' | 'customers' | 'crm' | 'predictive';
+const NAV: { id: NavId; label: string; icon: React.FC<any>; badge?: string }[] = [
+  { id: 'overview',   label: 'แดชบอร์ด',          icon: LayoutDashboard },
+  { id: 'sales',      label: 'Sales Analytics',   icon: BarChart2 },
+  { id: 'customers',  label: 'Customer Insights', icon: Users },
+  { id: 'crm',        label: 'CRM & Campaigns',   icon: Megaphone },
+  { id: 'predictive', label: 'Predictive AI',      icon: Brain, badge: 'Enterprise' },
 ];
 const DISABLED_NAV = [
   { label: 'แพทย์', icon: Stethoscope },
@@ -38,10 +40,11 @@ const DISABLED_NAV = [
 ];
 
 const PAGE_TITLE: Record<NavId, string> = {
-  overview:  'แดชบอร์ด',
-  sales:     'Sales Analytics',
-  customers: 'Customer Insights',
-  crm:       'CRM & Campaigns',
+  overview:   'แดชบอร์ด',
+  sales:      'Sales Analytics',
+  customers:  'Customer Insights',
+  crm:        'CRM & Campaigns',
+  predictive: 'Predictive Analytics',
 };
 
 export default function DashboardPage() {
@@ -98,7 +101,7 @@ export default function DashboardPage() {
 
         {/* Nav */}
         <nav className="flex-1 py-4 px-3 space-y-1 overflow-auto">
-          {NAV.map(({ id, label, icon: Icon }) => {
+          {NAV.map(({ id, label, icon: Icon, badge }) => {
             const active = activeNav === id;
             return (
               <button
@@ -109,7 +112,12 @@ export default function DashboardPage() {
                 }`}
               >
                 <Icon size={18} />
-                {label}
+                <span className="flex-1">{label}</span>
+                {badge && (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded font-bold bg-white/20 text-white/80">
+                    {badge}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -254,10 +262,11 @@ export default function DashboardPage() {
             </div>
           ) : dashData ? (
             <>
-              {activeNav === 'overview'  && <ExecutiveOverview data={dashData} theme={t} />}
-              {activeNav === 'sales'     && <SalesAnalytics data={dashData} />}
-              {activeNav === 'customers' && <CustomerInsights data={dashData} />}
-              {activeNav === 'crm'       && <CrmInsights />}
+              {activeNav === 'overview'    && <ExecutiveOverview data={dashData} theme={t} />}
+              {activeNav === 'sales'       && <SalesAnalytics data={dashData} />}
+              {activeNav === 'customers'   && <CustomerInsights data={dashData} />}
+              {activeNav === 'crm'         && <CrmInsights />}
+              {activeNav === 'predictive'  && <PredictiveDashboard />}
             </>
           ) : (
             <div className="text-center text-slate-400 mt-20">ไม่สามารถโหลดข้อมูลได้</div>
