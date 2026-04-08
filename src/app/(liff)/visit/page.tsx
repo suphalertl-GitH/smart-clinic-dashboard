@@ -58,6 +58,8 @@ export default function VisitPage() {
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [qrLoading, setQrLoading] = useState(false);
   const [qrError, setQrError] = useState('');
+  // step: 'qr' | 'receipt'
+  const [modalStep, setModalStep] = useState<'qr' | 'receipt'>('receipt');
 
   // Reprint modal
   const [reprintModal, setReprintModal] = useState(false);
@@ -138,21 +140,29 @@ export default function VisitPage() {
       const total = visits.reduce((s, i) => s + Number(i.price), 0);
       setReceiptItems(visits);
       setReceiptTotal(total);
+      setReceiptUrl('');
+
+      if (payMethod === 'โอน') {
+        // Step 1: แสดง QR ก่อน
+        setModalStep('qr');
+        setQrDataUrl('');
+        setQrError('');
+        setQrLoading(true);
+        fetch(`/api/promptpay?amount=${total}`)
+          .then(r => r.json())
+          .then(d => {
+            if (d.qr) setQrDataUrl(d.qr);
+            else setQrError(d.error ?? 'ไม่พบ PROMPTPAY_ID');
+          })
+          .catch(e => setQrError(e.message))
+          .finally(() => setQrLoading(false));
+      } else {
+        // เงินสด/เครดิต → ออกใบเสร็จได้เลย
+        setModalStep('receipt');
+      }
+
       setReceiptModal(true);
       setSuccess('บันทึก Visit สำเร็จ');
-
-      // โหลด QR PromptPay
-      setQrDataUrl('');
-      setQrError('');
-      setQrLoading(true);
-      fetch(`/api/promptpay?amount=${total}`)
-        .then(r => r.json())
-        .then(d => {
-          if (d.qr) setQrDataUrl(d.qr);
-          else setQrError(d.error ?? 'ไม่พบ PROMPTPAY_ID');
-        })
-        .catch(e => setQrError(e.message))
-        .finally(() => setQrLoading(false));
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -370,66 +380,97 @@ export default function VisitPage() {
       {/* ===== Receipt Modal ===== */}
       <Dialog open={receiptModal} onOpenChange={setReceiptModal}>
         <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle className="text-green-600">บันทึกสำเร็จ! 🎉</DialogTitle></DialogHeader>
 
-          {/* Points badge */}
-          {selectedPatient?.points !== undefined && (
-            <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50 rounded-lg text-sm">
-              <span>⭐</span>
-              <span className="text-indigo-700 font-medium">แต้มสะสม: <b>{(selectedPatient.points ?? 0) + Math.floor(receiptTotal / 100)} แต้ม</b></span>
-              <span className="text-gray-400 text-xs">(+{Math.floor(receiptTotal / 100)} วันนี้)</span>
-            </div>
+          {/* ── STEP 1: QR PromptPay ── */}
+          {modalStep === 'qr' && (
+            <>
+              <DialogHeader><DialogTitle className="text-indigo-600">รอรับชำระเงิน 💳</DialogTitle></DialogHeader>
+
+              <div className="space-y-1 text-sm">
+                {receiptItems.map((item, i) => (
+                  <div key={i} className="flex justify-between border-b border-dashed pb-1">
+                    <span>{item.name}</span><b>{Number(item.price).toLocaleString()}</b>
+                  </div>
+                ))}
+                <div className="flex justify-between font-bold text-indigo-600 pt-1 text-base">
+                  <span>ยอดรวม</span><span>{receiptTotal.toLocaleString()} บาท</span>
+                </div>
+              </div>
+
+              <div className="flex flex-col items-center py-3 border-2 border-indigo-200 rounded-xl bg-indigo-50">
+                <p className="text-xs font-semibold text-indigo-500 mb-1">สแกนพร้อมเพย์</p>
+                {qrLoading ? (
+                  <p className="text-sm text-gray-400 py-8">กำลังโหลด QR...</p>
+                ) : qrDataUrl ? (
+                  <img src={qrDataUrl} alt="PromptPay QR" className="w-52 h-52" />
+                ) : (
+                  <p className="text-xs text-red-400 py-4">{qrError || 'โหลด QR ไม่สำเร็จ'}</p>
+                )}
+                <p className="text-lg font-black text-indigo-700 mt-1">{receiptTotal.toLocaleString()} บาท</p>
+              </div>
+
+              <Button onClick={() => setModalStep('receipt')} className="w-full bg-green-600 hover:bg-green-700 py-3 text-base">
+                รับเงินแล้ว → ออกใบเสร็จ
+              </Button>
+              <Button variant="ghost" className="w-full text-gray-400" onClick={() => { setReceiptModal(false); window.location.reload(); }}>
+                ปิด / เริ่มคนใหม่
+              </Button>
+            </>
           )}
 
-          <div className="space-y-2 text-sm">
-            {receiptItems.map((item, i) => (
-              <div key={i} className="flex justify-between border-b border-dashed pb-1">
-                <span>{item.name}</span><b>{Number(item.price).toLocaleString()}</b>
-              </div>
-            ))}
-            <div className="flex justify-between font-bold text-red-500 pt-1">
-              <span>รวม</span><span>{receiptTotal.toLocaleString()} บาท</span>
-            </div>
-          </div>
+          {/* ── STEP 2: ออกใบเสร็จ ── */}
+          {modalStep === 'receipt' && (
+            <>
+              <DialogHeader><DialogTitle className="text-green-600">บันทึกสำเร็จ! 🎉</DialogTitle></DialogHeader>
 
-          {/* PromptPay QR — แสดงเสมอ */}
-          <div className="flex flex-col items-center py-3 border rounded-xl bg-gray-50">
-            <p className="text-xs font-semibold text-gray-500 mb-2">💳 PromptPay {receiptTotal.toLocaleString()} บาท</p>
-            {qrLoading ? (
-              <p className="text-sm text-gray-400 py-4">กำลังโหลด QR...</p>
-            ) : qrDataUrl ? (
-              <img src={qrDataUrl} alt="PromptPay QR" className="w-48 h-48" />
-            ) : (
-              <p className="text-xs text-red-400 py-2">{qrError || 'โหลด QR ไม่สำเร็จ'}</p>
-            )}
-          </div>
-
-          {!receiptUrl ? (
-            <div className="space-y-3 mt-2">
-              <div>
-                <Label>ชื่อผู้รับเงิน</Label>
-                <Input value={receiver} onChange={e => setReceiver(e.target.value)} placeholder="ชื่อพนักงาน" className="mt-1" />
-              </div>
-              <Button onClick={handleGenPdf} disabled={genPdf} className="w-full bg-pink-600 hover:bg-pink-700">
-                {genPdf ? 'กำลังสร้าง...' : 'ออกใบเสร็จ'}
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-2 mt-2">
-              {selectedPatient?.line_user_id && (
-                <div className="p-2 bg-green-50 border border-green-200 rounded-lg text-xs text-green-700 text-center">
-                  ✅ ส่งใบเสร็จไป LINE ลูกค้าแล้ว
+              {selectedPatient?.points !== undefined && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50 rounded-lg text-sm">
+                  <span>⭐</span>
+                  <span className="text-indigo-700 font-medium">แต้มสะสม: <b>{(selectedPatient.points ?? 0) + Math.floor(receiptTotal / 100)} แต้ม</b></span>
+                  <span className="text-gray-400 text-xs">(+{Math.floor(receiptTotal / 100)} วันนี้)</span>
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-2">
-                <Button size="sm" onClick={() => navigator.clipboard.writeText(receiptUrl)} className="bg-blue-600">คัดลอกลิงก์</Button>
-                <Button size="sm" onClick={() => window.open(receiptUrl)} className="bg-pink-600">เปิดใบเสร็จ</Button>
+
+              <div className="space-y-1 text-sm">
+                {receiptItems.map((item, i) => (
+                  <div key={i} className="flex justify-between border-b border-dashed pb-1">
+                    <span>{item.name}</span><b>{Number(item.price).toLocaleString()}</b>
+                  </div>
+                ))}
+                <div className="flex justify-between font-bold text-red-500 pt-1">
+                  <span>รวม</span><span>{receiptTotal.toLocaleString()} บาท</span>
+                </div>
               </div>
-            </div>
+
+              {!receiptUrl ? (
+                <div className="space-y-3">
+                  <div>
+                    <Label>ชื่อผู้รับเงิน</Label>
+                    <Input value={receiver} onChange={e => setReceiver(e.target.value)} placeholder="ชื่อพนักงาน" className="mt-1" />
+                  </div>
+                  <Button onClick={handleGenPdf} disabled={genPdf} className="w-full bg-pink-600 hover:bg-pink-700">
+                    {genPdf ? 'กำลังสร้าง...' : 'ออกใบเสร็จ'}
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {selectedPatient?.line_user_id && (
+                    <div className="p-2 bg-green-50 border border-green-200 rounded-lg text-xs text-green-700 text-center">
+                      ✅ ส่งใบเสร็จไป LINE ลูกค้าแล้ว
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button size="sm" onClick={() => navigator.clipboard.writeText(receiptUrl)} className="bg-blue-600">คัดลอกลิงก์</Button>
+                    <Button size="sm" onClick={() => window.open(receiptUrl)} className="bg-pink-600">เปิดใบเสร็จ</Button>
+                  </div>
+                </div>
+              )}
+              <Button variant="ghost" className="w-full" onClick={() => { setReceiptModal(false); window.location.reload(); }}>
+                ปิด / เริ่มคนใหม่
+              </Button>
+            </>
           )}
-          <Button variant="ghost" className="w-full" onClick={() => { setReceiptModal(false); window.location.reload(); }}>
-            ปิด / เริ่มคนใหม่
-          </Button>
+
         </DialogContent>
       </Dialog>
 
