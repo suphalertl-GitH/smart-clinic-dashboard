@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
 
   const query = supabaseAdmin
     .from('patients')
-    .select('id, hn, full_name, phone, sales_name')
+    .select('id, hn, full_name, phone, sales_name, line_user_id, points')
     .eq('clinic_id', CLINIC_ID)
     .order('created_at', { ascending: false })
     .limit(200);

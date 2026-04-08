@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { put } from '@vercel/blob';
+import { pushMessage, textMessage } from '@/lib/line';
 
 const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
 
@@ -82,7 +83,7 @@ function generateReceiptHtml(data: {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { hn, fullName, items, total, payment, receiver, date, visitId } = body;
+    const { hn, fullName, items, total, payment, receiver, date, visitId, lineUserId } = body;
 
     if (!hn || !items || !receiver) {
       return NextResponse.json({ error: 'ข้อมูลไม่ครบ' }, { status: 400 });
@@ -117,6 +118,14 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    // ส่งใบเสร็จ LINE ถ้ามี line_user_id
+    if (lineUserId) {
+      pushMessage(lineUserId, [
+        textMessage(`🧾 ใบเสร็จรับเงิน\n👤 คุณ${fullName}\n💰 รวม ${Number(total).toLocaleString()} บาท\n📄 ดูใบเสร็จ: ${htmlBlob.url}`)
+      ]).catch(() => {});
+    }
+
     return NextResponse.json({ success: true, url: htmlBlob.url, receipt });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

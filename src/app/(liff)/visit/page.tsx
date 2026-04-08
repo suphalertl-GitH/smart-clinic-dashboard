@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 // ============================================================
 // Types
 // ============================================================
-type Patient = { id: string; hn: string; full_name: string; phone: string; sales_name: string | null };
+type Patient = { id: string; hn: string; full_name: string; phone: string; sales_name: string | null; line_user_id?: string | null; points?: number };
 type VisitItem = { name: string; price: number };
 type Settings = { sales_names: string[]; doctor_names: string[] };
 
@@ -55,6 +55,8 @@ export default function VisitPage() {
   const [receiver, setReceiver] = useState('');
   const [receiptUrl, setReceiptUrl] = useState('');
   const [genPdf, setGenPdf] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState('');
+  const [qrLoading, setQrLoading] = useState(false);
 
   // Reprint modal
   const [reprintModal, setReprintModal] = useState(false);
@@ -75,7 +77,7 @@ export default function VisitPage() {
   useEffect(() => {
     Promise.all([
       fetch('/api/settings').then(r => r.json()),
-      fetch('/api/patients').then(r => r.json()),
+      fetch('/api/patients?fields=id,hn,full_name,phone,sales_name,line_user_id,points').then(r => r.json()),
     ]).then(([s, p]) => {
       setSettings(s);
       setPatients(Array.isArray(p) ? p : []);
@@ -132,10 +134,21 @@ export default function VisitPage() {
       const visitsRes = await fetch(`/api/visits?hn=${selectedPatient.hn}&date=${today}`);
       const visits: VisitItem[] = (await visitsRes.json()).map((v: any) => ({ name: v.treatment_name, price: v.price }));
 
+      const total = visits.reduce((s, i) => s + Number(i.price), 0);
       setReceiptItems(visits);
-      setReceiptTotal(visits.reduce((s, i) => s + Number(i.price), 0));
+      setReceiptTotal(total);
       setReceiptModal(true);
       setSuccess('บันทึก Visit สำเร็จ');
+
+      // โหลด QR PromptPay ถ้าจ่ายโอน
+      if (payMethod === 'โอน' && total > 0) {
+        setQrLoading(true);
+        fetch(`/api/promptpay?amount=${total}`)
+          .then(r => r.json())
+          .then(d => { if (d.qr) setQrDataUrl(d.qr); })
+          .catch(() => {})
+          .finally(() => setQrLoading(false));
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -160,6 +173,7 @@ export default function VisitPage() {
           receiver,
           date: today,
           visitId,
+          lineUserId: selectedPatient!.line_user_id ?? null,
         }),
       });
       const data = await res.json();
@@ -353,6 +367,16 @@ export default function VisitPage() {
       <Dialog open={receiptModal} onOpenChange={setReceiptModal}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle className="text-green-600">บันทึกสำเร็จ! 🎉</DialogTitle></DialogHeader>
+
+          {/* Points badge */}
+          {selectedPatient?.points !== undefined && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50 rounded-lg text-sm">
+              <span>⭐</span>
+              <span className="text-indigo-700 font-medium">แต้มสะสม: <b>{(selectedPatient.points ?? 0) + Math.floor(receiptTotal / 100)} แต้ม</b></span>
+              <span className="text-gray-400 text-xs">(+{Math.floor(receiptTotal / 100)} วันนี้)</span>
+            </div>
+          )}
+
           <div className="space-y-2 text-sm">
             {receiptItems.map((item, i) => (
               <div key={i} className="flex justify-between border-b border-dashed pb-1">
@@ -364,6 +388,22 @@ export default function VisitPage() {
             </div>
           </div>
 
+          {/* PromptPay QR */}
+          {payMethod === 'โอน' && (
+            <div className="flex flex-col items-center py-2 border rounded-xl bg-gray-50">
+              {qrLoading ? (
+                <p className="text-sm text-gray-400 py-4">กำลังโหลด QR...</p>
+              ) : qrDataUrl ? (
+                <>
+                  <img src={qrDataUrl} alt="PromptPay QR" className="w-44 h-44" />
+                  <p className="text-xs text-gray-500 mt-1">สแกนพร้อมเพย์ {receiptTotal.toLocaleString()} บาท</p>
+                </>
+              ) : (
+                <p className="text-xs text-gray-400 py-4">ไม่พบ PROMPTPAY_ID</p>
+              )}
+            </div>
+          )}
+
           {!receiptUrl ? (
             <div className="space-y-3 mt-2">
               <div>
@@ -371,12 +411,16 @@ export default function VisitPage() {
                 <Input value={receiver} onChange={e => setReceiver(e.target.value)} placeholder="ชื่อพนักงาน" className="mt-1" />
               </div>
               <Button onClick={handleGenPdf} disabled={genPdf} className="w-full bg-pink-600 hover:bg-pink-700">
-                {genPdf ? 'กำลังสร้าง...' : 'ออกใบเสร็จ (PDF)'}
+                {genPdf ? 'กำลังสร้าง...' : 'ออกใบเสร็จ'}
               </Button>
             </div>
           ) : (
             <div className="space-y-2 mt-2">
-              <div className="p-3 bg-gray-100 rounded-lg text-xs break-all">{receiptUrl}</div>
+              {selectedPatient?.line_user_id && (
+                <div className="p-2 bg-green-50 border border-green-200 rounded-lg text-xs text-green-700 text-center">
+                  ✅ ส่งใบเสร็จไป LINE ลูกค้าแล้ว
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-2">
                 <Button size="sm" onClick={() => navigator.clipboard.writeText(receiptUrl)} className="bg-blue-600">คัดลอกลิงก์</Button>
                 <Button size="sm" onClick={() => window.open(receiptUrl)} className="bg-pink-600">เปิดใบเสร็จ</Button>
