@@ -465,7 +465,7 @@ async function handleTextMessage(event: any) {
   // ── เช็คนัดหมาย ────────────────────────────────────────────
   if ((lower.includes('นัด') || lower.includes('คิว') || lower.includes('appointment')) && !lower.includes('ยกเลิก')) {
     // ถ้าถามว่าว่างไหม / จองนัด → เริ่ม booking flow
-    if (lower.includes('จอง') || lower.includes('ว่าง') || lower.includes('ตาราง') || lower.includes('หมอ')) {
+    if (lower.includes('จอง') || lower.includes('ว่าง') || lower.includes('ตาราง') || lower.includes('หมอ') || lower.includes('เพิ่มนัด') || lower.includes('นัดใหม่') || lower.includes('อยากนัด') || lower.includes('ต้องการนัด')) {
       // ลูกค้าใหม่ ยังไม่มีข้อมูลในระบบ → ถามชื่อก่อน
       if (!patient) {
         await setSession(userId, 'waiting_name', { nextStep: 'booking' });
