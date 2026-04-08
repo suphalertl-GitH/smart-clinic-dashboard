@@ -45,8 +45,8 @@ function ForecastCard({ label, value, sub, up, gradient }: {
       className="rounded-2xl p-5 text-white relative overflow-hidden stat-glow"
       style={{ background: gradient ?? `linear-gradient(135deg, ${PRIMARY}, #1a6b7a)` }}
     >
-      <p className="text-xs text-white/60 uppercase tracking-widest font-bold mb-1">{label}</p>
-      <p className="text-2xl font-heading font-black">{value}</p>
+      <p className="text-[10px] text-white/60 uppercase tracking-widest font-bold mb-1 leading-snug">{label}</p>
+      <p className="text-lg lg:text-2xl font-heading font-black">{value}</p>
       {sub && (
         <div className="flex items-center gap-1 mt-1.5">
           {up !== undefined && (
@@ -165,7 +165,7 @@ export default function PredictiveDashboard() {
       </div>
 
       {/* ── KPI forecast cards ───────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 lg:gap-4">
         <ForecastCard
           label="เดือนนี้ (Actual)"
           value={fmt(currentMonth)}
@@ -258,7 +258,7 @@ export default function PredictiveDashboard() {
       </div>
 
       {/* ── Churn Risk + Due Soon ────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
 
         {/* Churn Risk */}
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -436,7 +436,7 @@ export default function PredictiveDashboard() {
             </div>
 
             {/* 3 columns: Opportunities / Risks / Actions */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               {/* Opportunities */}
               <div className="rounded-xl bg-teal-50 border border-teal-100 p-4">
                 <p className="text-xs font-bold uppercase tracking-widest text-teal-600 mb-3 flex items-center gap-1.5">
