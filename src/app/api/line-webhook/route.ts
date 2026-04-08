@@ -216,6 +216,45 @@ async function handleTextMessage(event: any) {
 
   const session = await getSession(userId);
 
+  // ── STEP: waiting_name ────────────────────────────────────
+  if (session.step === 'waiting_name') {
+    if (text.length < 2) {
+      return replyText(replyToken, 'กรุณากรอกชื่อ-นามสกุลค่ะ');
+    }
+    await setSession(userId, 'waiting_phone', { ...session.data, name: text });
+    return replyText(replyToken, `ขอบคุณค่ะ คุณ${text} 😊\nกรุณากรอกเบอร์โทรศัพท์ด้วยนะคะ`);
+  }
+
+  // ── STEP: waiting_phone ───────────────────────────────────
+  if (session.step === 'waiting_phone') {
+    const phoneMatch = text.match(/0\d{8,9}/);
+    if (!phoneMatch) {
+      return replyText(replyToken, 'กรุณากรอกเบอร์โทรให้ถูกต้องค่ะ เช่น 0812345678');
+    }
+    const phone = phoneMatch[0];
+    const name = (session.data as any).name;
+    const nextStep = (session.data as any).nextStep ?? 'idle';
+
+    // แจ้ง admin group
+    const groupId = process.env.LINE_GROUP_ID;
+    if (groupId) {
+      pushText(groupId, `🆕 ลูกค้าใหม่ทาง LINE\n👤 ${name}  📞 ${phone}\n(ยังไม่ได้ลงทะเบียนในระบบ)`).catch(() => {});
+    }
+
+    // ถ้าขั้นต่อไปคือจองนัด
+    if (nextStep === 'booking') {
+      await setSession(userId, 'waiting_date', { name, phone });
+      const days = next7Days();
+      return reply(replyToken, [
+        { type: 'text', text: `ขอบคุณค่ะ คุณ${name} 😊\nต้องการนัดวันไหนคะ?` },
+        quickReply(days.map(d => ({ label: d.label, text: d.value }))),
+      ]);
+    }
+
+    await clearSession(userId);
+    return replyText(replyToken, `ขอบคุณค่ะ คุณ${name} 😊\nทีมงานจะติดต่อกลับที่ ${phone} นะคะ\nหรือโทรหาเราได้เลยที่ ${CLINIC.phone} ค่ะ`);
+  }
+
   // ── STEP: waiting_date ────────────────────────────────────
   if (session.step === 'waiting_date') {
     const date = parseDate(text);
@@ -266,8 +305,8 @@ async function handleTextMessage(event: any) {
         .from('patients').select('full_name, phone, hn')
         .eq('clinic_id', CLINIC_ID).eq('line_user_id', userId).single();
 
-      const name = patient?.full_name ?? 'ลูกค้า LINE';
-      const phone = patient?.phone ?? '-';
+      const name = patient?.full_name ?? (session.data as any).name ?? 'ลูกค้า LINE';
+      const phone = patient?.phone ?? (session.data as any).phone ?? '-';
       const hn = patient?.hn ?? null;
 
       // จองนัด
@@ -320,10 +359,15 @@ async function handleTextMessage(event: any) {
   if (lower.includes('นัด') || lower.includes('คิว') || lower.includes('appointment')) {
     // ถ้าถามว่าว่างไหม / จองนัด → เริ่ม booking flow
     if (lower.includes('จอง') || lower.includes('ว่าง') || lower.includes('ตาราง') || lower.includes('หมอ')) {
+      // ลูกค้าใหม่ ยังไม่มีข้อมูลในระบบ → ถามชื่อก่อน
+      if (!patient) {
+        await setSession(userId, 'waiting_name', { nextStep: 'booking' });
+        return replyText(replyToken, `ยินดีต้อนรับค่ะ 🌸\nก่อนจองนัด ขอทราบชื่อ-นามสกุลของคุณด้วยนะคะ`);
+      }
       await setSession(userId, 'waiting_date', {});
       const days = next7Days();
       return reply(replyToken, [
-        { type: 'text', text: 'ต้องการนัดวันไหนคะ? 📅' },
+        { type: 'text', text: `สวัสดีค่ะ คุณ${patient.full_name} 😊\nต้องการนัดวันไหนคะ? 📅` },
         quickReply(days.map(d => ({ label: d.label, text: d.value }))),
       ]);
     }
@@ -377,9 +421,17 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     for (const event of body.events ?? []) {
       if (event.type === 'follow') {
+        const followUserId = event.source?.userId ?? '';
         const groupId = process.env.LINE_GROUP_ID;
         if (groupId) pushText(groupId, `🆕 มีคนเพิ่มเพื่อน LINE OA ใหม่`).catch(() => {});
-        await replyText(event.replyToken, `สวัสดีค่ะ ยินดีต้อนรับสู่ ${CLINIC.name} 🌸\n\nสามารถพิมพ์ได้เลยค่ะ เช่น\n• "โปรโมชั่น" — ดูโปรปัจจุบัน\n• "จองนัด" — นัดหมายกับหมอ\n• "นัด" — เช็คนัดของคุณ\n• หรือถามอะไรก็ได้ค่ะ 😊\n\n📞 ${CLINIC.phone}`);
+        // เช็คว่าเคย register ไหม
+        const { data: existingPatient } = await supabaseAdmin
+          .from('patients').select('full_name').eq('clinic_id', CLINIC_ID).eq('line_user_id', followUserId).single();
+        if (existingPatient) {
+          await replyText(event.replyToken, `สวัสดีค่ะ คุณ${existingPatient.full_name} 🌸 ยินดีต้อนรับกลับมานะคะ!\n\n• "จองนัด" — นัดหมายกับหมอ\n• "นัด" — เช็คนัดของคุณ\n• "โปรโมชั่น" — ดูโปรปัจจุบัน\n\n📞 ${CLINIC.phone}`);
+        } else {
+          await replyText(event.replyToken, `สวัสดีค่ะ ยินดีต้อนรับสู่ ${CLINIC.name} 🌸\n\nสามารถพิมพ์ได้เลยค่ะ เช่น\n• "โปรโมชั่น" — ดูโปรปัจจุบัน\n• "จองนัด" — นัดหมายกับหมอ\n• ถามอะไรก็ได้ค่ะ 😊\n\n📞 ${CLINIC.phone}`);
+        }
         continue;
       }
       if (event.type === 'message' && event.message?.type === 'text') {
