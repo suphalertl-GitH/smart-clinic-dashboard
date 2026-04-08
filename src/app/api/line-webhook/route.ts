@@ -246,6 +246,26 @@ async function handleTextMessage(event: any) {
   // โหลด context ลูกค้า
   const { patient, systemPrompt } = await buildPatientContext(userId);
 
+  // ── Survey response: survey:SCORE:VISIT_ID ────────────────
+  if (text.startsWith('survey:')) {
+    const parts = text.split(':');
+    const score = parseInt(parts[1]);
+    const visitId = parts[2] ?? null;
+    if (score >= 1 && score <= 5) {
+      await supabaseAdmin.from('satisfaction_surveys').insert({
+        clinic_id: CLINIC_ID,
+        visit_id: visitId || null,
+        hn: patient?.hn ?? 'unknown',
+        line_user_id: userId,
+        score,
+      });
+      const responses = ['😔', '😐', '🙂', '😊', '🤩'];
+      return replyText(replyToken,
+        `ขอบคุณมากเลยค่ะ ${responses[score - 1]}\nคุณให้ ${score} ดาว — เราจะนำไปปรับปรุงบริการให้ดียิ่งขึ้นนะคะ 💜`
+      );
+    }
+  }
+
   // ยกเลิก / reset
   if (lower === 'ยกเลิก' || lower === 'cancel' || lower === 'เริ่มใหม่') {
     await clearSession(userId);

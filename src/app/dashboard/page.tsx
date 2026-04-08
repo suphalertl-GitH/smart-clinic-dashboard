@@ -9,18 +9,19 @@ import { Button } from '@/components/ui/button';
 import ExecutiveOverview from './_components/ExecutiveOverview';
 import SalesAnalytics from './_components/SalesAnalytics';
 import CustomerInsights from './_components/CustomerInsights';
+import CrmInsights from './_components/CrmInsights';
 import { MOCK_DASHBOARD } from '@/lib/mock-dashboard';
 
-type NavId = 'overview' | 'sales' | 'customers';
+type NavId = 'overview' | 'sales' | 'customers' | 'crm';
 
 const NAV = [
   { id: 'overview' as NavId, label: 'Executive Overview', icon: LayoutDashboard },
   { id: 'sales' as NavId, label: 'Sales Analytics', icon: BarChart2 },
   { id: 'customers' as NavId, label: 'Customer Insights', icon: Users },
+  { id: 'crm' as NavId, label: 'CRM & Campaigns', icon: Megaphone },
 ];
 
 const DISABLED_NAV = [
-  { label: 'Marketing Perf', icon: Megaphone },
   { label: 'Clinic Ops', icon: Stethoscope },
 ];
 
@@ -181,6 +182,7 @@ export default function DashboardPage() {
               {activeNav === 'overview' && <ExecutiveOverview data={dashData} />}
               {activeNav === 'sales' && <SalesAnalytics data={dashData} />}
               {activeNav === 'customers' && <CustomerInsights data={dashData} />}
+              {activeNav === 'crm' && <CrmInsights />}
             </>
           ) : (
             <div className="text-center text-stone-400 mt-20">ไม่สามารถโหลดข้อมูลได้</div>
