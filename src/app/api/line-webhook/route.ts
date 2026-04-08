@@ -132,12 +132,81 @@ function quickReply(items: { label: string; text: string }[]) {
   };
 }
 
+// ── Build patient context ─────────────────────────────────────
+async function buildPatientContext(userId: string) {
+  // ข้อมูลคนไข้
+  const { data: patient } = await supabaseAdmin
+    .from('patients')
+    .select('hn, full_name, phone, allergies, disease, points, created_at')
+    .eq('clinic_id', CLINIC_ID)
+    .eq('line_user_id', userId)
+    .single();
+
+  if (!patient) return { patient: null, systemPrompt: SYSTEM_PROMPT };
+
+  // ประวัติการรักษา (5 ครั้งล่าสุด)
+  const { data: visits } = await supabaseAdmin
+    .from('visits')
+    .select('treatment_name, price, created_at, doctor')
+    .eq('clinic_id', CLINIC_ID)
+    .eq('hn', patient.hn)
+    .order('created_at', { ascending: false })
+    .limit(5);
+
+  // นัดหมายที่จะถึง
+  const { data: upcoming } = await supabaseAdmin
+    .from('appointments')
+    .select('date, time, procedure')
+    .eq('clinic_id', CLINIC_ID)
+    .eq('hn', patient.hn)
+    .gte('date', new Date().toISOString().split('T')[0])
+    .order('date', { ascending: true })
+    .limit(2);
+
+  const visitHistory = visits && visits.length > 0
+    ? visits.map(v => {
+        const d = new Date(v.created_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
+        return `- ${d}: ${v.treatment_name} (${Number(v.price).toLocaleString()} บาท)${v.doctor ? ` โดย ${v.doctor}` : ''}`;
+      }).join('\n')
+    : '- ยังไม่มีประวัติการรักษา';
+
+  const upcomingText = upcoming && upcoming.length > 0
+    ? upcoming.map(a => `- ${thaiDateLabel(a.date)} เวลา ${a.time} น.${a.procedure ? ` (${a.procedure})` : ''}`).join('\n')
+    : '- ไม่มีนัดหมายที่จะถึง';
+
+  const memberSince = new Date(patient.created_at).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
+
+  const contextPrompt = `${SYSTEM_PROMPT}
+
+=== ข้อมูลลูกค้าที่กำลังคุยด้วย ===
+ชื่อ: คุณ${patient.full_name}
+HN: ${patient.hn}
+เบอร์: ${patient.phone}
+แต้มสะสม: ${patient.points ?? 0} แต้ม
+สมาชิกตั้งแต่: ${memberSince}
+${patient.allergies ? `แพ้ยา: ${patient.allergies}` : ''}
+${patient.disease ? `โรคประจำตัว: ${patient.disease}` : ''}
+
+ประวัติการรักษา (ล่าสุด):
+${visitHistory}
+
+นัดหมายที่จะถึง:
+${upcomingText}
+
+ให้เรียกชื่อลูกค้าว่า "คุณ${patient.full_name}" และตอบโดยอ้างอิงประวัติที่มี เช่น ถ้าลูกค้าถามเรื่อง Botox และเคยทำมาแล้ว ให้บอกว่าครั้งก่อนทำเมื่อไหร่ด้วย`;
+
+  return { patient, systemPrompt: contextPrompt };
+}
+
 // ── Main message handler ──────────────────────────────────────
 async function handleTextMessage(event: any) {
   const text: string = event.message?.text?.trim() ?? '';
   const userId: string = event.source?.userId ?? '';
   const replyToken: string = event.replyToken ?? '';
   const lower = text.toLowerCase();
+
+  // โหลด context ลูกค้า
+  const { patient, systemPrompt } = await buildPatientContext(userId);
 
   // ยกเลิก / reset
   if (lower === 'ยกเลิก' || lower === 'cancel' || lower === 'เริ่มใหม่') {
@@ -293,9 +362,9 @@ async function handleTextMessage(event: any) {
     return replyText(replyToken, `รับทราบค่ะ ทีมงานจะติดต่อกลับเพื่อนัดวันใหม่นะคะ 😊\nหรือโทร ${CLINIC.phone} ได้เลยค่ะ`);
   }
 
-  // ── AI ตอบทั่วไป ───────────────────────────────────────────
+  // ── AI ตอบทั่วไป (พร้อม patient context) ───────────────────
   try {
-    const answer = await claudeComplete(text, SYSTEM_PROMPT);
+    const answer = await claudeComplete(text, systemPrompt);
     return replyText(replyToken, answer);
   } catch {
     return replyText(replyToken, `ขอโทษค่ะ ระบบขัดข้องชั่วคราว\nกรุณาโทร ${CLINIC.phone} ค่ะ 🙏`);
