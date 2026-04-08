@@ -128,6 +128,107 @@ export async function GET() {
         points: p.points,
       }));
 
+    // ── Smart Audience (Behavior Segments) ──
+    // จำนวน visit ต่อคนไข้
+    const visitCountMap = new Map<string, number>();
+    const lastVisitMap = new Map<string, Date>();
+    for (const v of allVisits ?? []) {
+      visitCountMap.set(v.hn, (visitCountMap.get(v.hn) ?? 0) + 1);
+      if (!lastVisitMap.has(v.hn)) lastVisitMap.set(v.hn, new Date(v.created_at));
+    }
+
+    const visitedHns = new Set(visitCountMap.keys());
+
+    // ลูกค้าที่ยังไม่เคยมา
+    const neverVisited = (patients ?? []).filter(p => !visitedHns.has(p.hn)).length;
+
+    // ลูกค้าครั้งแรก (เดือนนี้)
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const { data: newThisMonth } = await supabaseAdmin
+      .from('visits')
+      .select('hn')
+      .eq('clinic_id', CLINIC_ID)
+      .eq('customer_type', 'new')
+      .gte('created_at', startOfMonth.toISOString());
+    const newThisMonthCount = new Set((newThisMonth ?? []).map(v => v.hn)).size;
+
+    // ลูกค้ามาครั้งเดียว (แล้วหายไป > 60 วัน)
+    const cutoff60 = new Date(now);
+    cutoff60.setDate(cutoff60.getDate() - 60);
+    const oneTimeInactive = (patients ?? []).filter(p => {
+      const cnt = visitCountMap.get(p.hn) ?? 0;
+      const last = lastVisitMap.get(p.hn);
+      return cnt === 1 && last && last < cutoff60;
+    }).length;
+
+    // ลูกค้าไม่มาตามนัด (นัดหมายผ่านไปแล้ว แต่ยังไม่มี visit ในวันนั้น)
+    const { data: pastAppts } = await supabaseAdmin
+      .from('appointments')
+      .select('hn, date')
+      .eq('clinic_id', CLINIC_ID)
+      .lt('date', now.toISOString().split('T')[0]);
+
+    const { data: visitDates } = await supabaseAdmin
+      .from('visits')
+      .select('hn, appt_date')
+      .eq('clinic_id', CLINIC_ID)
+      .not('appt_date', 'is', null);
+
+    const visitedApptKeys = new Set((visitDates ?? []).map(v => `${v.hn}:${v.appt_date}`));
+    const noShowCount = (pastAppts ?? []).filter(a =>
+      a.hn && !visitedApptKeys.has(`${a.hn}:${a.date}`)
+    ).length;
+
+    // ลูกค้า VIP (gold + platinum)
+    const vipCount = (patients ?? []).filter(p =>
+      p.loyalty_tier === 'gold' || p.loyalty_tier === 'platinum'
+    ).length;
+
+    // ลูกค้า High Frequency (5+ ครั้ง)
+    const highFreqCount = (patients ?? []).filter(p => (visitCountMap.get(p.hn) ?? 0) >= 5).length;
+
+    const smartAudience = {
+      behavior: [
+        { key: 'never_visited',   label: 'ยังไม่เคยมา',         desc: 'ลงทะเบียนแล้วแต่ยังไม่เคยใช้บริการ',    count: neverVisited,       color: '#6B7280' },
+        { key: 'no_show',         label: 'ไม่มาตามนัด',         desc: 'นัดไว้แต่ไม่มาคลินิก',                   count: noShowCount,         color: '#EF4444' },
+        { key: 'one_time',        label: 'มาครั้งเดียวแล้วหาย', desc: 'มาใช้บริการครั้งเดียว ไม่มากว่า 60 วัน', count: oneTimeInactive,     color: '#F59E0B' },
+        { key: 'new_this_month',  label: 'ลูกค้าใหม่เดือนนี้',  desc: 'เพิ่งมาใช้บริการครั้งแรกในเดือนนี้',    count: newThisMonthCount,  color: '#10B981' },
+        { key: 'at_risk',         label: 'ไม่มา > 90 วัน',      desc: 'เคยมาแต่ขาดหายไปกว่า 90 วัน',           count: atRisk,             color: '#EF4444' },
+        { key: 'vip',             label: 'VIP Member',           desc: 'ลูกค้า Gold และ Platinum tier',          count: vipCount,           color: '#7C3AED' },
+        { key: 'high_freq',       label: 'ลูกค้าประจำ (5+)',    desc: 'เข้ารับบริการ 5 ครั้งขึ้นไป',           count: highFreqCount,      color: '#4F46E5' },
+      ],
+      segment: rfmSummary.map(seg => ({
+        ...seg,
+        desc: RFM_DESC[seg.key] ?? '',
+      })),
+    };
+
+    // ── Cohort Analysis (Frequency × Spending) ──
+    const freqBands = [
+      { label: '1 ครั้ง',   min: 1, max: 1 },
+      { label: '2-3 ครั้ง', min: 2, max: 3 },
+      { label: '4-6 ครั้ง', min: 4, max: 6 },
+      { label: '7+ ครั้ง',  min: 7, max: Infinity },
+    ];
+    const spendBands = [
+      { label: '<3K',      min: 0,     max: 3000 },
+      { label: '3K-10K',   min: 3000,  max: 10000 },
+      { label: '10K-30K',  min: 10000, max: 30000 },
+      { label: '30K+',     min: 30000, max: Infinity },
+    ];
+
+    const cohort = freqBands.map(fb => ({
+      label: fb.label,
+      cells: spendBands.map(sb => {
+        const count = (patients ?? []).filter(p => {
+          const freq = visitCountMap.get(p.hn) ?? 0;
+          const spend = p.lifetime_spending ?? 0;
+          return freq >= fb.min && freq <= fb.max && spend >= sb.min && spend < sb.max;
+        }).length;
+        return { label: sb.label, count };
+      }),
+    }));
+
     return NextResponse.json({
       totalPatients: (patients ?? []).length,
       lineRegistered,
@@ -137,6 +238,8 @@ export async function GET() {
       totalSurveys: (surveys ?? []).length,
       scoreDistrib,
       rfmSegments: rfmSummary,
+      smartAudience,
+      cohort,
       campaigns: campaigns ?? [],
       topSpenders,
     });
@@ -144,6 +247,16 @@ export async function GET() {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
+
+const RFM_DESC: Record<string, string> = {
+  champions:     'ลูกค้าที่ดีที่สุด ซื้อบ่อย ใช้เงินสูง กลับมาล่าสุด',
+  loyal:         'ลูกค้าประจำ กำลังซื้อสูงถึงสูงมาก',
+  potential:     'ลูกค้าใหม่ที่มีแนวโน้มเป็นลูกค้าประจำ',
+  new:           'ลูกค้าใหม่ที่เพิ่งมาครั้งแรก',
+  need_attention:'ลูกค้าที่ต้องการการดูแลเป็นพิเศษ',
+  at_risk:       'เคยมาบ่อยแต่ไม่มานานแล้ว ควรติดตาม',
+  lost:          'ลูกค้าที่หายไปนาน ซื้อน้อย ไม่ค่อยกลับมา',
+};
 
 // ให้คะแนน 1-3 แบบ percentile
 function scoreQuintile(

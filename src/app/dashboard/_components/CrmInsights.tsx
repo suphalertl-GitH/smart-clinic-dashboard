@@ -170,6 +170,138 @@ export default function CrmInsights() {
         </div>
       </div>
 
+      {/* Smart Audience */}
+      <div className="bg-white rounded-2xl p-5 border border-stone-100">
+        <h3 className="text-sm font-bold text-stone-700 mb-1 flex items-center gap-2">
+          <Users size={15} className="text-teal-500" /> Smart Audience — ระบบติดตามลูกค้าอัตโนมัติ
+        </h3>
+        <p className="text-xs text-stone-400 mb-4">แบ่งกลุ่มลูกค้าตามพฤติกรรม เพื่อทำ Campaign ได้ตรงจุด</p>
+
+        <div className="mb-4">
+          <p className="text-xs font-bold text-stone-500 uppercase tracking-widest mb-2">Behavior Audience</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-stone-100">
+                  <th className="text-left text-xs text-stone-400 font-semibold pb-2">กลุ่มลูกค้า</th>
+                  <th className="text-center text-xs text-stone-400 font-semibold pb-2 w-16">จำนวน</th>
+                  <th className="text-left text-xs text-stone-400 font-semibold pb-2">คำอธิบาย</th>
+                  <th className="w-8 pb-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {(data.smartAudience?.behavior ?? []).map((seg: any) => (
+                  <tr key={seg.key} className="border-b border-stone-50 hover:bg-stone-50 transition-colors">
+                    <td className="py-2 pr-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full shrink-0" style={{ background: seg.color }} />
+                        <span className="font-semibold text-stone-700 text-xs">{seg.label}</span>
+                      </div>
+                    </td>
+                    <td className="py-2 text-center">
+                      <span className="font-black text-base" style={{ color: seg.color }}>{seg.count}</span>
+                    </td>
+                    <td className="py-2 text-xs text-stone-400">{seg.desc}</td>
+                    <td className="py-2">
+                      <button
+                        title="ส่ง Campaign ให้กลุ่มนี้"
+                        onClick={() => {
+                          setCampTier('');
+                          setCampName(`Campaign: ${seg.label}`);
+                          document.getElementById('campaign-msg')?.focus();
+                        }}
+                        className="text-indigo-400 hover:text-indigo-600 transition-colors"
+                      >
+                        <Send size={13} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div>
+          <p className="text-xs font-bold text-stone-500 uppercase tracking-widest mb-2">Segment Audience (RFM)</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-stone-100">
+                  <th className="text-left text-xs text-stone-400 font-semibold pb-2">กลุ่มลูกค้า</th>
+                  <th className="text-center text-xs text-stone-400 font-semibold pb-2 w-16">จำนวน</th>
+                  <th className="text-left text-xs text-stone-400 font-semibold pb-2">คำอธิบาย</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(data.smartAudience?.segment ?? []).map((seg: any) => (
+                  <tr key={seg.key} className="border-b border-stone-50 hover:bg-stone-50 transition-colors">
+                    <td className="py-2 pr-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full shrink-0" style={{ background: seg.color }} />
+                        <span className="font-semibold text-stone-700 text-xs">{seg.label}</span>
+                      </div>
+                    </td>
+                    <td className="py-2 text-center">
+                      <span className="font-black text-base" style={{ color: seg.color }}>{seg.count}</span>
+                    </td>
+                    <td className="py-2 text-xs text-stone-400">{seg.desc}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[10px] text-stone-400 mt-2">R = Recency · F = Frequency · M = Monetary</p>
+        </div>
+      </div>
+
+      {/* Cohort Analysis */}
+      <div className="bg-white rounded-2xl p-5 border border-stone-100">
+        <h3 className="text-sm font-bold text-stone-700 mb-1 flex items-center gap-2">
+          <TrendingUp size={15} className="text-purple-500" /> Cohort Analysis
+        </h3>
+        <p className="text-xs text-stone-400 mb-4">พฤติกรรมการใช้บริการในมิติของความถี่และกำลังซื้อในแต่ละครั้ง</p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr>
+                <th className="text-left text-stone-500 font-semibold pb-2 pr-4">ความถี่ \ ยอดใช้จ่าย</th>
+                {(data.cohort?.[0]?.cells ?? []).map((c: any) => (
+                  <th key={c.label} className="text-center text-stone-500 font-semibold pb-2 px-3">{c.label}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {(data.cohort ?? []).map((row: any) => {
+                const rowMax = Math.max(...row.cells.map((c: any) => c.count), 1);
+                return (
+                  <tr key={row.label} className="border-t border-stone-50">
+                    <td className="py-2 pr-4 font-semibold text-stone-600">{row.label}</td>
+                    {row.cells.map((cell: any) => {
+                      const intensity = cell.count === 0 ? 0 : Math.max(0.1, cell.count / rowMax);
+                      return (
+                        <td key={cell.label} className="py-2 px-3 text-center">
+                          <div
+                            className="rounded-lg py-1.5 px-2 font-bold transition-all"
+                            style={{
+                              background: cell.count === 0 ? '#F9FAFB' : `rgba(79,70,229,${intensity * 0.8})`,
+                              color: intensity > 0.5 ? '#fff' : cell.count === 0 ? '#D1D5DB' : '#4F46E5',
+                            }}
+                          >
+                            {cell.count}
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-[10px] text-stone-400 mt-2">สีเข้ม = คนไข้กลุ่มใหญ่</p>
+      </div>
+
       {/* Satisfaction Survey Distribution */}
       {data.totalSurveys > 0 && (
         <div className="bg-white rounded-2xl p-5 border border-stone-100">
@@ -242,6 +374,7 @@ export default function CrmInsights() {
             className="w-full px-3 py-2 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-indigo-400"
           />
           <textarea
+            id="campaign-msg"
             value={campMsg}
             onChange={e => setCampMsg(e.target.value)}
             placeholder="ข้อความที่จะส่งผ่าน LINE..."
