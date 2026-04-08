@@ -1,100 +1,137 @@
 'use client';
 
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { fmt } from './KpiCard';
+import { fmt, T, CHART_COLORS } from './KpiCard';
 
 type Props = { data: any };
-const COLORS = ['#4F46E5', '#7C3AED', '#10B981', '#D4A853', '#EC4899', '#E11D48'];
 
 export default function CustomerInsights({ data }: Props) {
   const { newRegistrationsByMonth, customerTypeDistribution, acquisitionSource, visitFrequency, topPatients } = data;
+
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-          <h3 className="text-sm font-semibold mb-4">New Patient Registrations by Month</h3>
+        {/* New Registrations */}
+        <div className="bg-white rounded-2xl p-5 border border-stone-100 shadow-sm">
+          <h3 className="text-sm font-semibold mb-4 text-stone-700">New Patient Registrations by Month</h3>
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={newRegistrationsByMonth}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} name="New Patients" />
+              <CartesianGrid strokeDasharray="3 3" stroke="#f5f0eb" />
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9CA3AF' }} />
+              <YAxis tick={{ fontSize: 11, fill: '#9CA3AF' }} />
+              <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
+              <Line
+                type="monotone" dataKey="count" stroke={T.teal} strokeWidth={2.5}
+                dot={{ r: 4, fill: T.teal, stroke: '#fff', strokeWidth: 2 }}
+                activeDot={{ r: 6 }}
+                name="New Patients"
+              />
             </LineChart>
           </ResponsiveContainer>
         </div>
-        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-          <h3 className="text-sm font-semibold mb-4">Customer Type Distribution</h3>
+
+        {/* Donut: Customer Type */}
+        <div className="bg-white rounded-2xl p-5 border border-stone-100 shadow-sm">
+          <h3 className="text-sm font-semibold mb-4 text-stone-700">Customer Type Distribution</h3>
           {customerTypeDistribution.length > 0 ? (
             <>
               <ResponsiveContainer width="100%" height={160}>
                 <PieChart>
-                  <Pie data={customerTypeDistribution} cx="50%" cy="50%" innerRadius={50} outerRadius={75} dataKey="value" paddingAngle={2}>
-                    {customerTypeDistribution.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  <Pie
+                    data={customerTypeDistribution}
+                    cx="50%" cy="50%"
+                    innerRadius={50} outerRadius={75}
+                    dataKey="value" paddingAngle={3}
+                  >
+                    {customerTypeDistribution.map((_: any, i: number) => (
+                      <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                    ))}
                   </Pie>
-                  <Tooltip />
+                  <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
                 </PieChart>
               </ResponsiveContainer>
-              <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 mt-2">
+              <div className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 mt-2">
                 {customerTypeDistribution.map((item: any, i: number) => (
-                  <div key={i} className="flex items-center gap-1.5 text-xs text-gray-500">
-                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />{item.name}
+                  <div key={i} className="flex items-center gap-1.5 text-xs text-stone-500">
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
+                    {item.name}
                   </div>
                 ))}
               </div>
             </>
-          ) : <div className="h-40 flex items-center justify-center text-gray-400 text-sm">No data</div>}
+          ) : (
+            <div className="h-40 flex items-center justify-center text-stone-400 text-sm">No data</div>
+          )}
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-          <h3 className="text-sm font-semibold mb-4">Patient Acquisition Source</h3>
+        {/* Acquisition Source */}
+        <div className="bg-white rounded-2xl p-5 border border-stone-100 shadow-sm">
+          <h3 className="text-sm font-semibold mb-4 text-stone-700">Patient Acquisition Source</h3>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={acquisitionSource}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="source" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Bar dataKey="count" fill="#4F46E5" radius={[3, 3, 0, 0]} name="Patients" />
+              <CartesianGrid strokeDasharray="3 3" stroke="#f5f0eb" />
+              <XAxis dataKey="source" tick={{ fontSize: 11, fill: '#9CA3AF' }} />
+              <YAxis tick={{ fontSize: 11, fill: '#9CA3AF' }} />
+              <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
+              <Bar dataKey="count" fill={T.teal} radius={[5, 5, 0, 0]} name="Patients" />
             </BarChart>
           </ResponsiveContainer>
         </div>
-        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-          <h3 className="text-sm font-semibold mb-4">Visit Frequency Distribution</h3>
+
+        {/* Visit Frequency */}
+        <div className="bg-white rounded-2xl p-5 border border-stone-100 shadow-sm">
+          <h3 className="text-sm font-semibold mb-4 text-stone-700">Visit Frequency Distribution</h3>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={visitFrequency}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="range" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Bar dataKey="count" fill="#10B981" radius={[3, 3, 0, 0]} name="Patients" />
+              <CartesianGrid strokeDasharray="3 3" stroke="#f5f0eb" />
+              <XAxis dataKey="range" tick={{ fontSize: 11, fill: '#9CA3AF' }} />
+              <YAxis tick={{ fontSize: 11, fill: '#9CA3AF' }} />
+              <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
+              <Bar dataKey="count" fill={T.sage} radius={[5, 5, 0, 0]} name="Patients" />
             </BarChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-200"><h3 className="text-sm font-semibold">Top 10 Patients by Revenue</h3></div>
+      {/* Top Patients Table */}
+      <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-stone-100 flex items-center gap-2">
+          <div className="w-1 h-4 rounded-full" style={{ background: T.teal }} />
+          <h3 className="text-sm font-semibold text-stone-700">Top 10 Patients by Revenue</h3>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="bg-gray-50">
-              <th className="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase w-12">#</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase">Patient HN</th>
-              <th className="text-right px-4 py-3 text-xs font-semibold text-gray-400 uppercase">Visits</th>
-              <th className="text-right px-4 py-3 text-xs font-semibold text-gray-400 uppercase">Revenue</th>
-              <th className="text-right px-5 py-3 text-xs font-semibold text-gray-400 uppercase">Avg/Visit</th>
-            </tr></thead>
+            <thead>
+              <tr className="bg-stone-50">
+                <th className="text-left px-5 py-3 text-xs font-semibold text-stone-400 uppercase w-12">#</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-stone-400 uppercase">Patient HN</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-stone-400 uppercase">Visits</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-stone-400 uppercase">Revenue</th>
+                <th className="text-right px-5 py-3 text-xs font-semibold text-stone-400 uppercase">Avg/Visit</th>
+              </tr>
+            </thead>
             <tbody>
-              {topPatients.map((p: any, i: number) => (
-                <tr key={i} className="border-t border-gray-100 hover:bg-gray-50">
-                  <td className="px-5 py-3 text-gray-400 font-medium">{i + 1}</td>
-                  <td className="px-4 py-3 font-medium">{p.hn}</td>
-                  <td className="px-4 py-3 text-right text-gray-400">{p.visits}</td>
-                  <td className="px-4 py-3 text-right font-semibold text-blue-600">{fmt(p.revenue)}</td>
-                  <td className="px-5 py-3 text-right text-gray-400">{fmt(p.avgPerVisit)}</td>
-                </tr>
-              ))}
+              {topPatients.map((p: any, i: number) => {
+                const color = CHART_COLORS[i % CHART_COLORS.length];
+                return (
+                  <tr key={i} className="border-t border-stone-50 hover:bg-stone-50 transition-colors">
+                    <td className="px-5 py-3">
+                      <div
+                        className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black text-white"
+                        style={{ background: color }}
+                      >
+                        {i + 1}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 font-medium text-stone-700">{p.hn}</td>
+                    <td className="px-4 py-3 text-right text-stone-400">{p.visits}</td>
+                    <td className="px-4 py-3 text-right font-bold" style={{ color: T.teal }}>{fmt(p.revenue)}</td>
+                    <td className="px-5 py-3 text-right text-stone-400">{fmt(p.avgPerVisit)}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

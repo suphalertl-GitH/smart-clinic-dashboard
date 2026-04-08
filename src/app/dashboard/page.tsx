@@ -63,7 +63,7 @@ export default function DashboardPage() {
       <aside className="w-60 flex flex-col shrink-0 bg-white border-r border-stone-200">
         {/* Logo */}
         <div className="h-16 flex items-center gap-3 px-5 border-b border-stone-100">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: '#4F46E5' }}>
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: '#2B8080' }}>
             <Activity size={17} className="text-white" />
           </div>
           <div>
@@ -85,11 +85,11 @@ export default function DashboardPage() {
                     ? 'text-white shadow-md'
                     : 'text-stone-500 hover:bg-stone-50 hover:text-stone-800'
                 }`}
-                style={active ? { background: '#4F46E5' } : {}}
+                style={active ? { background: '#2B8080' } : {}}
               >
                 <Icon size={16} className={active ? 'text-white' : 'text-stone-400'} />
                 {label}
-                {active && <ChevronRight size={13} className="ml-auto text-indigo-200" />}
+                {active && <ChevronRight size={13} className="ml-auto opacity-60" />}
               </button>
             );
           })}
@@ -107,10 +107,10 @@ export default function DashboardPage() {
 
         {/* Plan badge */}
         <div className="p-4">
-          <div className="rounded-2xl p-4" style={{ background: '#1E1B4B' }}>
-            <p className="text-[10px] text-indigo-300 uppercase tracking-widest font-bold mb-0.5">Current Plan</p>
+          <div className="rounded-2xl p-4" style={{ background: '#1A4F4F' }}>
+            <p className="text-[10px] text-teal-300 uppercase tracking-widest font-bold mb-0.5">Current Plan</p>
             <p className="text-sm font-black text-white mb-3">Starter</p>
-            <button className="w-full text-white text-xs font-bold py-2 rounded-xl transition-colors flex items-center justify-center gap-1.5" style={{ background: '#4F46E5' }}>
+            <button className="w-full text-white text-xs font-bold py-2 rounded-xl transition-colors flex items-center justify-center gap-1.5" style={{ background: '#D4745A' }}>
               <Zap size={12} /> Upgrade
             </button>
           </div>
