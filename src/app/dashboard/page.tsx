@@ -2,44 +2,66 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Activity, RefreshCw, LayoutDashboard, BarChart2,
-  Users, Megaphone, Stethoscope, ChevronRight, Zap,
+  Activity, RefreshCw, LayoutDashboard, BarChart2, Users,
+  Megaphone, Stethoscope, Bell, Search, LogOut, HeartPulse,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import ExecutiveOverview from './_components/ExecutiveOverview';
 import SalesAnalytics from './_components/SalesAnalytics';
 import CustomerInsights from './_components/CustomerInsights';
 import CrmInsights from './_components/CrmInsights';
 import { MOCK_DASHBOARD } from '@/lib/mock-dashboard';
 
+// ── Theme Definitions ─────────────────────────────────────────
+type ThemeKey = 'teal' | 'emerald' | 'blue' | 'purple' | 'rose' | 'amber' | 'cyan' | 'fuchsia';
+const THEMES: Record<ThemeKey, { bg: string; bgDark: string; accent: string; gradient: string }> = {
+  teal:    { bg: '#0f4c5c', bgDark: '#1a6b7a', accent: '#e36414', gradient: 'linear-gradient(135deg, #0f4c5c, #1a6b7a)' },
+  emerald: { bg: '#059669', bgDark: '#10b981', accent: '#f59e0b', gradient: 'linear-gradient(135deg, #059669, #10b981)' },
+  blue:    { bg: '#0369a1', bgDark: '#0ea5e9', accent: '#f59e0b', gradient: 'linear-gradient(135deg, #0369a1, #0ea5e9)' },
+  purple:  { bg: '#7c3aed', bgDark: '#a78bfa', accent: '#e36414', gradient: 'linear-gradient(135deg, #7c3aed, #a78bfa)' },
+  rose:    { bg: '#e11d48', bgDark: '#fb7185', accent: '#f59e0b', gradient: 'linear-gradient(135deg, #e11d48, #fb7185)' },
+  amber:   { bg: '#d97706', bgDark: '#fbbf24', accent: '#0f4c5c', gradient: 'linear-gradient(135deg, #d97706, #fbbf24)' },
+  cyan:    { bg: '#0891b2', bgDark: '#06b6d4', accent: '#e36414', gradient: 'linear-gradient(135deg, #0891b2, #06b6d4)' },
+  fuchsia: { bg: '#d946ef', bgDark: '#ec4899', accent: '#f59e0b', gradient: 'linear-gradient(135deg, #d946ef, #ec4899)' },
+};
+
+// ── Nav items ─────────────────────────────────────────────────
 type NavId = 'overview' | 'sales' | 'customers' | 'crm';
-
-const NAV = [
-  { id: 'overview' as NavId, label: 'Executive Overview', icon: LayoutDashboard },
-  { id: 'sales' as NavId, label: 'Sales Analytics', icon: BarChart2 },
-  { id: 'customers' as NavId, label: 'Customer Insights', icon: Users },
-  { id: 'crm' as NavId, label: 'CRM & Campaigns', icon: Megaphone },
+const NAV: { id: NavId; label: string; icon: React.FC<any> }[] = [
+  { id: 'overview',   label: 'แดชบอร์ด',       icon: LayoutDashboard },
+  { id: 'sales',      label: 'Sales Analytics', icon: BarChart2 },
+  { id: 'customers',  label: 'Customer Insights',icon: Users },
+  { id: 'crm',        label: 'CRM & Campaigns', icon: Megaphone },
 ];
-
 const DISABLED_NAV = [
-  { label: 'Clinic Ops', icon: Stethoscope },
+  { label: 'แพทย์', icon: Stethoscope },
+  { label: 'Clinic Ops', icon: Activity },
 ];
+
+const PAGE_TITLE: Record<NavId, string> = {
+  overview:  'แดชบอร์ด',
+  sales:     'Sales Analytics',
+  customers: 'Customer Insights',
+  crm:       'CRM & Campaigns',
+};
 
 export default function DashboardPage() {
-  const [dashData, setDashData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [dashData, setDashData]   = useState<any>(null);
+  const [loading, setLoading]     = useState(true);
   const [usingMock, setUsingMock] = useState(false);
   const [activeNav, setActiveNav] = useState<NavId>('overview');
   const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [endDate, setEndDate]     = useState('');
+  const [theme, setTheme]         = useState<ThemeKey>('teal');
+
+  const t = THEMES[theme];
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (startDate) params.set('startDate', startDate);
-      if (endDate) params.set('endDate', endDate);
-      const res = await fetch(`/api/dashboard?${params}`);
+      if (endDate)   params.set('endDate', endDate);
+      const res  = await fetch(`/api/dashboard?${params}`);
       const text = await res.text();
       if (!text) throw new Error('empty');
       setDashData(JSON.parse(text));
@@ -55,74 +77,106 @@ export default function DashboardPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const activeLabel = NAV.find(n => n.id === activeNav)?.label ?? '';
-
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: '#F5F4F0' }}>
-      {/* ── Sidebar ── */}
-      <aside className="w-60 flex flex-col shrink-0 bg-white border-r border-stone-200">
+    <div className="flex h-full w-full font-body" style={{ backgroundColor: '#f1f5f9' }}>
+
+      {/* ── Sidebar ───────────────────────────────────────── */}
+      <aside className="w-64 flex-shrink-0 flex flex-col text-white" style={{ backgroundColor: t.bg }}>
+
         {/* Logo */}
-        <div className="h-16 flex items-center gap-3 px-5 border-b border-stone-100">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: '#2B8080' }}>
-            <Activity size={17} className="text-white" />
-          </div>
-          <div>
-            <p className="text-sm font-black leading-tight tracking-tight text-stone-800">Smart Clinic</p>
-            <p className="text-[10px] text-stone-400 leading-tight font-medium">Business Intelligence</p>
+        <div className="p-5 border-b border-white/10">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: t.accent }}>
+              <HeartPulse size={22} className="text-white" />
+            </div>
+            <div>
+              <h1 className="font-heading font-bold text-base leading-tight">Smart Clinic</h1>
+              <p className="text-xs text-white/50">Management System</p>
+            </div>
           </div>
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 px-3 py-5 space-y-1">
+        <nav className="flex-1 py-4 px-3 space-y-1 overflow-auto">
           {NAV.map(({ id, label, icon: Icon }) => {
             const active = activeNav === id;
             return (
               <button
                 key={id}
                 onClick={() => setActiveNav(id)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-                  active
-                    ? 'text-white shadow-md'
-                    : 'text-stone-500 hover:bg-stone-50 hover:text-stone-800'
+                className={`sidebar-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-left transition-all ${
+                  active ? 'bg-white/15 text-white' : 'text-white/60 hover:text-white'
                 }`}
-                style={active ? { background: '#2B8080' } : {}}
               >
-                <Icon size={16} className={active ? 'text-white' : 'text-stone-400'} />
+                <Icon size={18} />
                 {label}
-                {active && <ChevronRight size={13} className="ml-auto opacity-60" />}
               </button>
             );
           })}
 
-          <div className="pt-4 pb-1 px-3">
-            <p className="text-[10px] uppercase font-bold text-stone-300 tracking-widest">Coming Soon</p>
+          <div className="pt-3 pb-1">
+            <p className="text-[10px] uppercase font-bold text-white/30 tracking-widest px-3 mb-2">Coming Soon</p>
           </div>
           {DISABLED_NAV.map(({ label, icon: Icon }) => (
-            <div key={label} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-stone-300 cursor-not-allowed select-none">
-              <Icon size={16} className="text-stone-200" />
+            <div key={label} className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-white/25 cursor-not-allowed select-none">
+              <Icon size={18} />
               {label}
             </div>
           ))}
         </nav>
 
-        {/* Plan badge */}
-        <div className="p-4">
-          <div className="rounded-2xl p-4" style={{ background: '#1A4F4F' }}>
-            <p className="text-[10px] text-teal-300 uppercase tracking-widest font-bold mb-0.5">Current Plan</p>
-            <p className="text-sm font-black text-white mb-3">Starter</p>
-            <button className="w-full text-white text-xs font-bold py-2 rounded-xl transition-colors flex items-center justify-center gap-1.5" style={{ background: '#D4745A' }}>
-              <Zap size={12} /> Upgrade
+        {/* Theme Switcher */}
+        <div className="px-3 py-3 border-t border-white/10 mb-1">
+          <p className="text-xs font-bold text-white/40 uppercase tracking-widest mb-2.5 px-1">ธีมสี</p>
+          <div className="grid grid-cols-4 gap-2">
+            {(Object.entries(THEMES) as [ThemeKey, typeof THEMES.teal][]).map(([key, th]) => (
+              <button
+                key={key}
+                onClick={() => setTheme(key)}
+                title={key}
+                className="w-full h-7 rounded-lg border-2 transition-all hover:scale-105"
+                style={{
+                  background: th.gradient,
+                  borderColor: theme === key ? '#fff' : 'transparent',
+                  boxShadow:   theme === key ? '0 0 8px rgba(255,255,255,0.3)' : 'none',
+                }}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Admin footer */}
+        <div className="p-4 border-t border-white/10">
+          <div className="flex items-center gap-3">
+            <div
+              className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
+              style={{ backgroundColor: t.accent }}
+            >
+              AD
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">Admin</p>
+              <p className="text-xs text-white/40">ผู้ดูแลระบบ</p>
+            </div>
+            <button className="text-white/40 hover:text-white transition-colors">
+              <LogOut size={16} />
             </button>
           </div>
         </div>
       </aside>
 
-      {/* ── Main area ── */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Top bar */}
-        <header className="h-16 bg-white border-b border-stone-200 flex items-center justify-between px-6 shrink-0">
+      {/* ── Main area ─────────────────────────────────────── */}
+      <main className="flex-1 overflow-auto flex flex-col min-w-0">
+
+        {/* Sticky header */}
+        <header
+          className="sticky top-0 z-10 px-6 py-4 flex items-center justify-between shrink-0"
+          style={{ backgroundColor: '#f1f5f9', borderBottom: '1px solid #e2e8f0' }}
+        >
           <div>
-            <h1 className="text-base font-black text-stone-800 tracking-tight">{activeLabel}</h1>
+            <h2 className="font-heading font-bold text-xl" style={{ color: t.bg }}>
+              {PAGE_TITLE[activeNav]}
+            </h2>
             <div className="flex items-center gap-2 mt-0.5">
               {usingMock ? (
                 <span className="flex items-center gap-1 text-[11px] text-amber-500 font-semibold">
@@ -134,61 +188,82 @@ export default function DashboardPage() {
                 </span>
               )}
               {dashData?.lastUpdated && (
-                <span className="text-[11px] text-stone-400">· {dashData.lastUpdated}</span>
+                <span className="text-[11px] text-slate-400">· {dashData.lastUpdated}</span>
               )}
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
+            {/* Date filters */}
+            <div className="hidden md:flex items-center gap-2">
               <input
                 type="date" value={startDate}
                 onChange={e => setStartDate(e.target.value)}
-                className="px-2.5 py-1.5 border border-stone-200 rounded-lg text-xs text-stone-600 bg-stone-50 focus:outline-none focus:border-indigo-400"
+                className="px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs text-slate-600 bg-white focus:outline-none focus:border-teal-400"
               />
-              <span className="text-stone-300 text-xs">–</span>
+              <span className="text-slate-300 text-xs">–</span>
               <input
                 type="date" value={endDate}
                 onChange={e => setEndDate(e.target.value)}
-                className="px-2.5 py-1.5 border border-stone-200 rounded-lg text-xs text-stone-600 bg-stone-50 focus:outline-none focus:border-indigo-400"
+                className="px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs text-slate-600 bg-white focus:outline-none focus:border-teal-400"
               />
               {(startDate || endDate) && (
                 <button
                   onClick={() => { setStartDate(''); setEndDate(''); }}
-                  className="text-xs text-stone-400 hover:text-stone-600 px-2 py-1.5 rounded-lg hover:bg-stone-100 transition-colors"
+                  className="text-xs text-slate-400 hover:text-slate-600 px-2 py-1.5 rounded-lg hover:bg-slate-100"
                 >✕</button>
               )}
             </div>
 
-            <Button
-              variant="outline" size="sm"
+            {/* Search */}
+            <div className="relative">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="ค้นหา..."
+                className="pl-9 pr-4 py-2 rounded-xl text-sm border border-slate-200 bg-white focus:outline-none focus:ring-2 w-44"
+                style={{ '--tw-ring-color': t.bg } as React.CSSProperties}
+              />
+            </div>
+
+            {/* Refresh */}
+            <button
               onClick={loadData} disabled={loading}
-              className="h-8 text-xs gap-1.5 text-stone-600 border-stone-200 rounded-lg font-semibold"
+              className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 transition-colors"
+              title="Refresh"
             >
-              <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-              Refresh
-            </Button>
+              <RefreshCw size={16} className={`text-slate-500 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+
+            {/* Bell */}
+            <button className="relative p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50">
+              <Bell size={18} className="text-slate-500" />
+              <span
+                className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-white text-[10px] flex items-center justify-center font-bold"
+                style={{ backgroundColor: t.accent }}
+              >3</span>
+            </button>
           </div>
         </header>
 
         {/* Content */}
-        <main className="flex-1 overflow-y-auto px-6 py-6">
+        <div className="flex-1 p-6">
           {loading && !dashData ? (
-            <div className="flex items-center justify-center h-64 text-stone-400 gap-2">
+            <div className="flex items-center justify-center h-64 text-slate-400 gap-2">
               <RefreshCw size={20} className="animate-spin" /> กำลังโหลด...
             </div>
           ) : dashData ? (
             <>
-              {activeNav === 'overview' && <ExecutiveOverview data={dashData} />}
-              {activeNav === 'sales' && <SalesAnalytics data={dashData} />}
+              {activeNav === 'overview'  && <ExecutiveOverview data={dashData} theme={t} />}
+              {activeNav === 'sales'     && <SalesAnalytics data={dashData} />}
               {activeNav === 'customers' && <CustomerInsights data={dashData} />}
-              {activeNav === 'crm' && <CrmInsights />}
+              {activeNav === 'crm'       && <CrmInsights />}
             </>
           ) : (
-            <div className="text-center text-stone-400 mt-20">ไม่สามารถโหลดข้อมูลได้</div>
+            <div className="text-center text-slate-400 mt-20">ไม่สามารถโหลดข้อมูลได้</div>
           )}
-        </main>
-      </div>
+        </div>
+      </main>
     </div>
   );
 }
