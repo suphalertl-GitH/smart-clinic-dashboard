@@ -317,11 +317,14 @@ async function handleTextMessage(event: any) {
 
       // ถ้าเป็นการเลื่อนนัด → update แทน insert
       if (rescheduleApptId) {
+        // ดึงชื่อจาก appointment เดิม (กรณีไม่ได้ register)
+        const { data: oldAppt } = await supabaseAdmin.from('appointments').select('name, phone').eq('id', rescheduleApptId).single();
         await supabaseAdmin.from('appointments').update({ date, time, ...(treatment ? { procedure: treatment } : {}) })
           .eq('id', rescheduleApptId).eq('clinic_id', CLINIC_ID);
         const groupId = process.env.LINE_GROUP_ID;
-        const name = patient?.full_name ?? (session.data as any).name ?? 'ลูกค้า';
-        if (groupId) pushText(groupId, `🔄 ${name} เลื่อนนัด\nเดิม: ${thaiDateLabel(oldDate)} ${oldTime} น.\nใหม่: ${thaiDateLabel(date)} ${time} น.`).catch(() => {});
+        const name = patient?.full_name ?? oldAppt?.name ?? (session.data as any).name ?? 'ลูกค้า';
+        const phone = patient?.phone ?? oldAppt?.phone ?? '';
+        if (groupId) pushText(groupId, `🔄 เลื่อนนัด\n👤 ${name}${phone ? `  📞 ${phone}` : ''}\nเดิม: ${thaiDateLabel(oldDate)} ${oldTime} น.\nใหม่: ${thaiDateLabel(date)} ${time} น.`).catch(() => {});
         await clearSession(userId);
         return replyText(replyToken, `เลื่อนนัดเรียบร้อยแล้วค่ะ ✅\n📅 ${thaiDateLabel(date)}\n⏰ ${time} น.\n\nพบกันในวันใหม่นะคะ 😊`);
       }
@@ -381,11 +384,13 @@ async function handleTextMessage(event: any) {
   if (session.step === 'waiting_cancel_confirm') {
     if (lower === 'ยืนยัน' || lower === 'ใช่' || lower === 'ยกเลิกนัด') {
       const { apptId, date, time } = session.data as any;
+      const { data: cancelAppt } = await supabaseAdmin.from('appointments').select('name, phone').eq('id', apptId).single();
       await supabaseAdmin.from('appointments').delete()
         .eq('id', apptId).eq('clinic_id', CLINIC_ID);
       const groupId = process.env.LINE_GROUP_ID;
-      const name = patient?.full_name ?? 'ลูกค้า';
-      if (groupId) pushText(groupId, `❌ ${name} ยกเลิกนัด\n📅 ${thaiDateLabel(date)} ${time} น.`).catch(() => {});
+      const name = patient?.full_name ?? cancelAppt?.name ?? 'ลูกค้า';
+      const phone = patient?.phone ?? cancelAppt?.phone ?? '';
+      if (groupId) pushText(groupId, `❌ ยกเลิกนัด\n👤 ${name}${phone ? `  📞 ${phone}` : ''}\n📅 ${thaiDateLabel(date)} ${time} น.`).catch(() => {});
       await clearSession(userId);
       return replyText(replyToken, `ยกเลิกนัดเรียบร้อยแล้วค่ะ ✅\n📅 ${thaiDateLabel(date)} ${time} น.\n\nหากต้องการนัดใหม่ พิมพ์ "จองนัด" ได้เลยนะคะ 😊`);
     }
