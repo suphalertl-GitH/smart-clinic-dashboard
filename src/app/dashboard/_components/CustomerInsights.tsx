@@ -1,7 +1,10 @@
 'use client';
 
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { fmt, T, CHART_COLORS } from './KpiCard';
+import { fmt, CHART_COLORS } from './KpiCard';
+
+const PRIMARY = '#0f4c5c';
+const SAGE    = '#5FAD82';
 
 type Props = { data: any };
 
@@ -10,49 +13,42 @@ export default function CustomerInsights({ data }: Props) {
 
   return (
     <div className="space-y-5">
+
+      {/* ── New Registrations + Customer Type (โครงสร้างเดิม) ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* New Registrations */}
-        <div className="bg-white rounded-2xl p-5 border border-stone-100 shadow-sm">
-          <h3 className="text-sm font-semibold mb-4 text-stone-700">New Patient Registrations by Month</h3>
+        <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
+          <h3 className="text-sm font-heading font-semibold mb-4 text-slate-700">New Patient Registrations by Month</h3>
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={newRegistrationsByMonth}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f5f0eb" />
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9CA3AF' }} />
-              <YAxis tick={{ fontSize: 11, fill: '#9CA3AF' }} />
-              <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
-              <Line
-                type="monotone" dataKey="count" stroke={T.teal} strokeWidth={2.5}
-                dot={{ r: 4, fill: T.teal, stroke: '#fff', strokeWidth: 2 }}
-                activeDot={{ r: 6 }}
-                name="New Patients"
-              />
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} />
+              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />
+              <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)', fontSize: 12 }} />
+              <Line type="monotone" dataKey="count" stroke={PRIMARY} strokeWidth={2.5}
+                dot={{ r: 4, fill: PRIMARY, stroke: '#fff', strokeWidth: 2 }}
+                activeDot={{ r: 6, fill: PRIMARY }} name="New Patients" />
             </LineChart>
           </ResponsiveContainer>
         </div>
 
-        {/* Donut: Customer Type */}
-        <div className="bg-white rounded-2xl p-5 border border-stone-100 shadow-sm">
-          <h3 className="text-sm font-semibold mb-4 text-stone-700">Customer Type Distribution</h3>
+        <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
+          <h3 className="text-sm font-heading font-semibold mb-4 text-slate-700">Customer Type Distribution</h3>
           {customerTypeDistribution.length > 0 ? (
             <>
               <ResponsiveContainer width="100%" height={160}>
                 <PieChart>
-                  <Pie
-                    data={customerTypeDistribution}
-                    cx="50%" cy="50%"
-                    innerRadius={50} outerRadius={75}
-                    dataKey="value" paddingAngle={3}
-                  >
+                  <Pie data={customerTypeDistribution} cx="50%" cy="50%"
+                    innerRadius={50} outerRadius={75} dataKey="value" paddingAngle={3}>
                     {customerTypeDistribution.map((_: any, i: number) => (
                       <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
+                  <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)', fontSize: 12 }} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 mt-2">
                 {customerTypeDistribution.map((item: any, i: number) => (
-                  <div key={i} className="flex items-center gap-1.5 text-xs text-stone-500">
+                  <div key={i} className="flex items-center gap-1.5 text-xs text-slate-500">
                     <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
                     {item.name}
                   </div>
@@ -60,75 +56,72 @@ export default function CustomerInsights({ data }: Props) {
               </div>
             </>
           ) : (
-            <div className="h-40 flex items-center justify-center text-stone-400 text-sm">No data</div>
+            <div className="h-40 flex items-center justify-center text-slate-400 text-sm">No data</div>
           )}
         </div>
       </div>
 
+      {/* ── Acquisition Source + Visit Frequency (โครงสร้างเดิม) ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Acquisition Source */}
-        <div className="bg-white rounded-2xl p-5 border border-stone-100 shadow-sm">
-          <h3 className="text-sm font-semibold mb-4 text-stone-700">Patient Acquisition Source</h3>
+        <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
+          <h3 className="text-sm font-heading font-semibold mb-4 text-slate-700">Patient Acquisition Source</h3>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={acquisitionSource}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f5f0eb" />
-              <XAxis dataKey="source" tick={{ fontSize: 11, fill: '#9CA3AF' }} />
-              <YAxis tick={{ fontSize: 11, fill: '#9CA3AF' }} />
-              <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
-              <Bar dataKey="count" fill={T.teal} radius={[5, 5, 0, 0]} name="Patients" />
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <XAxis dataKey="source" tick={{ fontSize: 11, fill: '#94a3b8' }} />
+              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />
+              <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)', fontSize: 12 }} />
+              <Bar dataKey="count" fill={PRIMARY} radius={[5, 5, 0, 0]} name="Patients" />
             </BarChart>
           </ResponsiveContainer>
         </div>
 
-        {/* Visit Frequency */}
-        <div className="bg-white rounded-2xl p-5 border border-stone-100 shadow-sm">
-          <h3 className="text-sm font-semibold mb-4 text-stone-700">Visit Frequency Distribution</h3>
+        <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
+          <h3 className="text-sm font-heading font-semibold mb-4 text-slate-700">Visit Frequency Distribution</h3>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={visitFrequency}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f5f0eb" />
-              <XAxis dataKey="range" tick={{ fontSize: 11, fill: '#9CA3AF' }} />
-              <YAxis tick={{ fontSize: 11, fill: '#9CA3AF' }} />
-              <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
-              <Bar dataKey="count" fill={T.sage} radius={[5, 5, 0, 0]} name="Patients" />
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <XAxis dataKey="range" tick={{ fontSize: 11, fill: '#94a3b8' }} />
+              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />
+              <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)', fontSize: 12 }} />
+              <Bar dataKey="count" fill={SAGE} radius={[5, 5, 0, 0]} name="Patients" />
             </BarChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      {/* Top Patients Table */}
-      <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-stone-100 flex items-center gap-2">
-          <div className="w-1 h-4 rounded-full" style={{ background: T.teal }} />
-          <h3 className="text-sm font-semibold text-stone-700">Top 10 Patients by Revenue</h3>
+      {/* ── Top 10 Patients Table (โครงสร้างเดิม) ── */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
+          <div className="w-1 h-4 rounded-full" style={{ background: PRIMARY }} />
+          <h3 className="text-sm font-heading font-semibold text-slate-700">Top 10 Patients by Revenue</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-stone-50">
-                <th className="text-left px-5 py-3 text-xs font-semibold text-stone-400 uppercase w-12">#</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-stone-400 uppercase">Patient HN</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-stone-400 uppercase">Visits</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-stone-400 uppercase">Revenue</th>
-                <th className="text-right px-5 py-3 text-xs font-semibold text-stone-400 uppercase">Avg/Visit</th>
+              <tr className="bg-slate-50">
+                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-400 uppercase w-12">#</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase">Patient HN</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-slate-400 uppercase">Visits</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-slate-400 uppercase">Revenue</th>
+                <th className="text-right px-5 py-3 text-xs font-semibold text-slate-400 uppercase">Avg/Visit</th>
               </tr>
             </thead>
             <tbody>
               {topPatients.map((p: any, i: number) => {
                 const color = CHART_COLORS[i % CHART_COLORS.length];
                 return (
-                  <tr key={i} className="border-t border-stone-50 hover:bg-stone-50 transition-colors">
+                  <tr key={i} className="border-t border-slate-50 hover:bg-slate-50 transition-colors">
                     <td className="px-5 py-3">
-                      <div
-                        className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black text-white"
-                        style={{ background: color }}
-                      >
+                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white"
+                        style={{ background: color }}>
                         {i + 1}
                       </div>
                     </td>
-                    <td className="px-4 py-3 font-medium text-stone-700">{p.hn}</td>
-                    <td className="px-4 py-3 text-right text-stone-400">{p.visits}</td>
-                    <td className="px-4 py-3 text-right font-bold" style={{ color: T.teal }}>{fmt(p.revenue)}</td>
-                    <td className="px-5 py-3 text-right text-stone-400">{fmt(p.avgPerVisit)}</td>
+                    <td className="px-4 py-3 font-medium text-slate-700">{p.hn}</td>
+                    <td className="px-4 py-3 text-right text-slate-400">{p.visits}</td>
+                    <td className="px-4 py-3 text-right font-bold" style={{ color: PRIMARY }}>{fmt(p.revenue)}</td>
+                    <td className="px-5 py-3 text-right text-slate-400">{fmt(p.avgPerVisit)}</td>
                   </tr>
                 );
               })}
