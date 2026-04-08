@@ -76,11 +76,13 @@ export async function POST(req: NextRequest) {
     // บวก points: 1 แต้ม ต่อ 100 บาท
     const earnedPoints = Math.floor(parseFloat(price) / 100);
     if (earnedPoints > 0) {
-      await supabaseAdmin.rpc('increment_patient_points', {
-        p_clinic_id: CLINIC_ID,
-        p_hn: hn,
-        p_points: earnedPoints,
-      }).catch(() => {}); // ถ้า RPC ยังไม่มี ก็ข้ามไป
+      try {
+        await supabaseAdmin.rpc('increment_patient_points', {
+          p_clinic_id: CLINIC_ID,
+          p_hn: hn,
+          p_points: earnedPoints,
+        });
+      } catch { /* ข้ามถ้า RPC ไม่มี */ }
     }
 
     // ถ้ามีนัดหมายครั้งหน้า — สร้าง appointment ด้วย
