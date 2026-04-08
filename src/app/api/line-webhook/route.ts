@@ -17,6 +17,44 @@ const SYSTEM_PROMPT = `คุณคือ AI assistant ของ ${CLINIC.name} 
 ถ้าถามเรื่องราคา: แนะนำให้โทรสอบถามหรือ DM เพราะราคาขึ้นกับการประเมินของแพทย์
 ห้ามแต่งข้อมูลที่ไม่รู้`;
 
+// ── AI intent parser ─────────────────────────────────────────
+async function extractAppointmentIntent(text: string): Promise<{
+  isAppointmentQuery: boolean;
+  date: string | null;
+  time: string | null;
+}> {
+  const todayStr = new Date().toLocaleDateString('th-TH', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  });
+  const todayISO = new Date().toISOString().split('T')[0];
+
+  const prompt = `วันนี้คือ ${todayStr} (${todayISO})
+
+ข้อความจากลูกค้า: "${text}"
+
+วิเคราะห์:
+1. isAppointmentQuery: ลูกค้าถามเรื่องว่างไหม/ตารางหมอ/อยากนัด หรือไม่? (true/false)
+2. date: วันที่ที่ลูกค้าหมายถึง ในรูปแบบ YYYY-MM-DD หรือ null ถ้าไม่ระบุ
+3. time: เวลาที่ลูกค้าหมายถึง ในรูปแบบ HH:MM (เช่น บ่ายสอง = 14:00, เที่ยง = 12:00, บ่ายสาม = 15:00) หรือ null
+
+ตอบเป็น JSON เท่านั้น ไม่มีข้อความอื่น:
+{"isAppointmentQuery": true/false, "date": "YYYY-MM-DD" หรือ null, "time": "HH:MM" หรือ null}`;
+
+  try {
+    const res = await claudeComplete(prompt, 'คุณคือ JSON parser ตอบ JSON เท่านั้น ไม่มีข้อความอื่น');
+    const match = res.match(/\{[\s\S]+?\}/);
+    if (!match) return { isAppointmentQuery: false, date: null, time: null };
+    const json = JSON.parse(match[0]);
+    return {
+      isAppointmentQuery: json.isAppointmentQuery === true,
+      date: json.date ?? null,
+      time: json.time ?? null,
+    };
+  } catch {
+    return { isAppointmentQuery: false, date: null, time: null };
+  }
+}
+
 // ── LINE API helpers ──────────────────────────────────────────
 async function linePost(url: string, body: object) {
   return fetch(url, {
@@ -532,6 +570,63 @@ async function handleTextMessage(event: any) {
     const groupId = process.env.LINE_GROUP_ID;
     if (groupId) pushText(groupId, `✅ ${patient?.full_name ?? 'ลูกค้า'} ยืนยันนัดหมายแล้ว`).catch(() => {});
     return replyText(replyToken, `ขอบคุณที่ยืนยันนัดหมายค่ะ 🙏\nพบกันในวันนัดนะคะ!\nสอบถาม: ${CLINIC.phone}`);
+  }
+
+  // ── Natural language appointment detection ───────────────────
+  // ถ้ามี keyword วัน/เวลา → ให้ AI วิเคราะห์ intent ก่อน
+  const hasTimeHint = /วัน|พรุ่งนี้|มะรืน|เสาร์|อาทิตย์|จันทร์|อังคาร|พุธ|พฤหัส|ศุกร์|บ่าย|เช้า|เย็น|โมง|ว่างมั้ย|ว่างไหม|หมอว่าง|คิวว่าง|\d+\s*(โมง|นาฬิกา|น\.)/.test(text);
+  if (hasTimeHint) {
+    const intent = await extractAppointmentIntent(text);
+    if (intent.isAppointmentQuery) {
+      const targetDate = intent.date ?? new Date(Date.now() + 86400000).toISOString().split('T')[0];
+      const slots = await getAvailableSlots(targetDate);
+
+      if (slots.length === 0) {
+        // วันนั้นเต็ม → เสนอวันอื่น
+        const nextDay = new Date(targetDate);
+        nextDay.setDate(nextDay.getDate() + 1);
+        const nextDateStr = nextDay.toISOString().split('T')[0];
+        const nextSlots = await getAvailableSlots(nextDateStr);
+        const suggest = nextSlots.slice(0, 3).join(', ') + ' น.';
+        return replyText(replyToken,
+          `วัน${thaiDateLabel(targetDate)} คิวเต็มแล้วค่ะ 😔\nวัน${thaiDateLabel(nextDateStr)} ยังว่างอยู่ที่ ${suggest}\nสนใจจองไหมคะ? 😊`
+        );
+      }
+
+      // มีช่วงว่าง → เช็คตรงเวลาที่ถามก่อน
+      if (intent.time) {
+        const exact = slots.find(s => s === intent.time);
+        const near = slots.filter(s => {
+          const [sh, sm] = s.split(':').map(Number);
+          const [th, tm] = (intent.time as string).split(':').map(Number);
+          return Math.abs(sh * 60 + sm - (th * 60 + tm)) <= 60;
+        }).slice(0, 3);
+
+        if (exact) {
+          await setSession(userId, 'waiting_treatment', {
+            date: targetDate, time: intent.time,
+            name: patient?.full_name, phone: patient?.phone,
+          });
+          const nameTag = patient ? `คุณ${patient.full_name} ` : '';
+          return reply(replyToken, [{
+            type: 'text',
+            text: `${nameTag}วัน${thaiDateLabel(targetDate)} เวลา ${intent.time} น. ว่างค่ะ 🎉\nต้องการมาใช้บริการอะไรคะ?`,
+          }, quickReply(['Botox','Filler','Sculptra','Profhilo','Juvelook','Rejuran','Ultherapy','Ultraformer','Fat dissolve','IV Drip','อื่นๆ'].map(t => ({ label: t, text: t })))]);
+        } else if (near.length > 0) {
+          return reply(replyToken, [{
+            type: 'text',
+            text: `เวลา ${intent.time} น. ไม่ว่างค่ะ 😔\nแต่วัน${thaiDateLabel(targetDate)} มีว่าง ${near.join(', ')} น.\nสนใจเวลาไหนคะ?`,
+          }, quickReply(near.map(s => ({ label: s + ' น.', text: s })))]);
+        }
+      }
+
+      // ไม่ได้ระบุเวลา → แสดงช่วงว่างทั้งหมด
+      const nameTag = patient ? `คุณ${patient.full_name} ` : '';
+      return reply(replyToken, [
+        { type: 'text', text: `${nameTag}วัน${thaiDateLabel(targetDate)} มีว่างค่ะ 📅` },
+        quickReply(slots.slice(0, 13).map(s => ({ label: s + ' น.', text: s }))),
+      ]);
+    }
   }
 
   // ── AI ตอบทั่วไป (พร้อม patient context) ───────────────────
