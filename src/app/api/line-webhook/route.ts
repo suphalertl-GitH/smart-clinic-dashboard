@@ -266,7 +266,7 @@ async function handleTextMessage(event: any) {
       await clearSession(userId);
       return replyText(replyToken, `วัน${thaiDateLabel(date)} เต็มแล้วค่ะ 😔\nกรุณาเลือกวันอื่น หรือโทร ${CLINIC.phone} ค่ะ`);
     }
-    await setSession(userId, 'waiting_slot', { date });
+    await setSession(userId, 'waiting_slot', { ...session.data, date });
     const qr = quickReply(slots.map(s => ({ label: s, text: s })));
     return reply(replyToken, [
       { type: 'text', text: `วัน${thaiDateLabel(date)} มีช่วงเวลาว่างดังนี้ค่ะ 📅` },
