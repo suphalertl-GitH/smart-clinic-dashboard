@@ -24,6 +24,8 @@ function generateReceiptHtml(data: {
     </tr>`).join('');
 
   return `<!DOCTYPE html><html><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet">
     </head><body style="font-family:'Sarabun',sans-serif;background:#fff;margin:0;padding:20px;">
     <div style="width:650px;margin:auto;border-radius:15px;border:1px solid #fce4ec;overflow:hidden;">
@@ -96,7 +98,7 @@ export async function POST(req: NextRequest) {
     const htmlBlob = await put(
       `receipts/${hn}_${date.replace(/\//g, '-')}_${Date.now()}.html`,
       html,
-      { access: 'public', contentType: 'text/html' }
+      { access: 'public', contentType: 'text/html; charset=utf-8' }
     );
 
     // บันทึก receipt record

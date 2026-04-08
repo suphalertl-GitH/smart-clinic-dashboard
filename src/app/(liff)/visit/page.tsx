@@ -140,9 +140,10 @@ export default function VisitPage() {
       setReceiptModal(true);
       setSuccess('บันทึก Visit สำเร็จ');
 
-      // โหลด QR PromptPay ถ้าจ่ายโอน
-      if (payMethod === 'โอน' && total > 0) {
+      // โหลด QR PromptPay เสมอ (ไม่ว่าจะเลือก payMethod อะไร แสดงเฉพาะตอนโอน)
+      if (total > 0) {
         setQrLoading(true);
+        setQrDataUrl('');
         fetch(`/api/promptpay?amount=${total}`)
           .then(r => r.json())
           .then(d => { if (d.qr) setQrDataUrl(d.qr); })
