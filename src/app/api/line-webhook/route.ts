@@ -313,12 +313,18 @@ async function handleTextMessage(event: any) {
   // ── STEP: waiting_confirm ─────────────────────────────────
   if (session.step === 'waiting_confirm') {
     if (lower === 'ยืนยัน' || lower === 'ใช่' || lower === 'ok' || lower === 'โอเค') {
-      const { date, time, treatment } = session.data as any;
+      const { date, time, treatment, rescheduleApptId, oldDate, oldTime } = session.data as any;
 
-      // ดึงข้อมูลคนไข้
-      const { data: patient } = await supabaseAdmin
-        .from('patients').select('full_name, phone, hn')
-        .eq('clinic_id', CLINIC_ID).eq('line_user_id', userId).single();
+      // ถ้าเป็นการเลื่อนนัด → update แทน insert
+      if (rescheduleApptId) {
+        await supabaseAdmin.from('appointments').update({ date, time, ...(treatment ? { procedure: treatment } : {}) })
+          .eq('id', rescheduleApptId).eq('clinic_id', CLINIC_ID);
+        const groupId = process.env.LINE_GROUP_ID;
+        const name = patient?.full_name ?? (session.data as any).name ?? 'ลูกค้า';
+        if (groupId) pushText(groupId, `🔄 ${name} เลื่อนนัด\nเดิม: ${thaiDateLabel(oldDate)} ${oldTime} น.\nใหม่: ${thaiDateLabel(date)} ${time} น.`).catch(() => {});
+        await clearSession(userId);
+        return replyText(replyToken, `เลื่อนนัดเรียบร้อยแล้วค่ะ ✅\n📅 ${thaiDateLabel(date)}\n⏰ ${time} น.\n\nพบกันในวันใหม่นะคะ 😊`);
+      }
 
       const name = patient?.full_name ?? (session.data as any).name ?? 'ลูกค้า LINE';
       const phone = patient?.phone ?? (session.data as any).phone ?? '-';
@@ -371,6 +377,53 @@ async function handleTextMessage(event: any) {
     return replyText(replyToken, `ขณะนี้ยังไม่มีโปรโมชั่นพิเศษค่ะ\nติดตามได้ที่ LINE นี้เลยนะคะ 😊`);
   }
 
+  // ── STEP: waiting_cancel_confirm ─────────────────────────
+  if (session.step === 'waiting_cancel_confirm') {
+    if (lower === 'ยืนยัน' || lower === 'ใช่' || lower === 'ยกเลิกนัด') {
+      const { apptId, date, time } = session.data as any;
+      await supabaseAdmin.from('appointments').delete()
+        .eq('id', apptId).eq('clinic_id', CLINIC_ID);
+      const groupId = process.env.LINE_GROUP_ID;
+      const name = patient?.full_name ?? 'ลูกค้า';
+      if (groupId) pushText(groupId, `❌ ${name} ยกเลิกนัด\n📅 ${thaiDateLabel(date)} ${time} น.`).catch(() => {});
+      await clearSession(userId);
+      return replyText(replyToken, `ยกเลิกนัดเรียบร้อยแล้วค่ะ ✅\n📅 ${thaiDateLabel(date)} ${time} น.\n\nหากต้องการนัดใหม่ พิมพ์ "จองนัด" ได้เลยนะคะ 😊`);
+    }
+    await clearSession(userId);
+    return replyText(replyToken, 'รับทราบค่ะ ยังคงนัดหมายไว้เหมือนเดิมนะคะ 😊');
+  }
+
+  // ── STEP: waiting_reschedule_select ──────────────────────
+  if (session.step === 'waiting_reschedule_select') {
+    // ลูกค้าเลือกนัดที่จะเลื่อน (ส่ง appt id มาจากปุ่ม)
+    const apptId = text;
+    const appts = (session.data as any).appts as any[];
+    const selected = appts?.find((a: any) => a.id === apptId);
+    if (!selected) return replyText(replyToken, 'กรุณาเลือกจากรายการด้านบนค่ะ');
+    await setSession(userId, 'waiting_date', { rescheduleApptId: apptId, oldDate: selected.date, oldTime: selected.time });
+    const days = next7Days();
+    return reply(replyToken, [
+      { type: 'text', text: `เลื่อนนัดจาก ${thaiDateLabel(selected.date)} ${selected.time} น.\nต้องการนัดวันใหม่วันไหนคะ? 📅` },
+      quickReply(days.map(d => ({ label: d.label, text: d.value }))),
+    ]);
+  }
+
+  // ── STEP: waiting_reschedule_confirm ──────────────────────
+  if (session.step === 'waiting_reschedule_confirm') {
+    if (lower === 'ยืนยัน' || lower === 'ใช่') {
+      const { rescheduleApptId, date, time, treatment, oldDate, oldTime } = session.data as any;
+      await supabaseAdmin.from('appointments').update({ date, time, procedure: treatment ?? undefined })
+        .eq('id', rescheduleApptId).eq('clinic_id', CLINIC_ID);
+      const groupId = process.env.LINE_GROUP_ID;
+      const name = patient?.full_name ?? 'ลูกค้า';
+      if (groupId) pushText(groupId, `🔄 ${name} เลื่อนนัด\nเดิม: ${thaiDateLabel(oldDate)} ${oldTime} น.\nใหม่: ${thaiDateLabel(date)} ${time} น.`).catch(() => {});
+      await clearSession(userId);
+      return replyText(replyToken, `เลื่อนนัดเรียบร้อยแล้วค่ะ ✅\n📅 ${thaiDateLabel(date)}\n⏰ ${time} น.\n\nพบกันในวันใหม่นะคะ 😊`);
+    }
+    await clearSession(userId);
+    return replyText(replyToken, 'รับทราบค่ะ ยกเลิกการเลื่อนนัดแล้วนะคะ 😊');
+  }
+
   // ── เช็คนัดหมาย ────────────────────────────────────────────
   if (lower.includes('นัด') || lower.includes('คิว') || lower.includes('appointment')) {
     // ถ้าถามว่าว่างไหม / จองนัด → เริ่ม booking flow
@@ -400,6 +453,70 @@ async function handleTextMessage(event: any) {
       return replyText(replyToken, `นัดหมายของคุณที่จะถึง:\n${lines}\n\nสอบถาม: ${CLINIC.phone}`);
     }
     return replyText(replyToken, `ไม่พบนัดหมายในระบบค่ะ\nต้องการจองนัดใหม่ไหมคะ?`, );
+  }
+
+  // ── ยกเลิกนัด ──────────────────────────────────────────────
+  if (lower.includes('ยกเลิกนัด') || lower === 'cancel appointment') {
+    const today = new Date().toISOString().split('T')[0];
+    const query = patient
+      ? supabaseAdmin.from('appointments').select('id, date, time, procedure').eq('clinic_id', CLINIC_ID).eq('hn', patient.hn).gte('date', today).order('date').limit(3)
+      : supabaseAdmin.from('appointments').select('id, date, time, procedure').eq('clinic_id', CLINIC_ID).eq('line_user_id', userId).gte('date', today).order('date').limit(3);
+    const { data: appts } = await query;
+    if (!appts || appts.length === 0) {
+      return replyText(replyToken, 'ไม่พบนัดหมายที่จะถึงในระบบค่ะ 😊');
+    }
+    if (appts.length === 1) {
+      const a = appts[0];
+      await setSession(userId, 'waiting_cancel_confirm', { apptId: a.id, date: a.date, time: a.time });
+      return reply(replyToken, [{
+        type: 'text',
+        text: `ยืนยันยกเลิกนัดหมายนี้ไหมคะ?\n📅 ${thaiDateLabel(a.date)}\n⏰ ${a.time} น.${a.procedure ? `\n💉 ${a.procedure}` : ''}`,
+        quickReply: { items: [
+          { type: 'action', action: { type: 'message', label: '✅ ยืนยันยกเลิก', text: 'ยืนยัน' } },
+          { type: 'action', action: { type: 'message', label: '❌ ไม่ยกเลิก', text: 'ไม่' } },
+        ]},
+      }]);
+    }
+    // มีหลายนัด → ให้เลือก
+    await setSession(userId, 'waiting_cancel_confirm', { apptId: appts[0].id, date: appts[0].date, time: appts[0].time });
+    const lines = appts.map((a, i) => `${i + 1}. ${thaiDateLabel(a.date)} ${a.time} น.${a.procedure ? ` (${a.procedure})` : ''}`).join('\n');
+    return reply(replyToken, [{
+      type: 'text', text: `นัดหมายที่จะถึงค่ะ:\n${lines}\n\nยืนยันยกเลิกนัดแรก ถูกต้องไหมคะ?`,
+      quickReply: { items: [
+        { type: 'action', action: { type: 'message', label: '✅ ยืนยันยกเลิก', text: 'ยืนยัน' } },
+        { type: 'action', action: { type: 'message', label: '❌ ไม่ยกเลิก', text: 'ไม่' } },
+      ]},
+    }]);
+  }
+
+  // ── เลื่อนนัด ──────────────────────────────────────────────
+  if (lower.includes('เลื่อนนัด') || lower === 'ขอเลื่อนนัดหมาย') {
+    const today = new Date().toISOString().split('T')[0];
+    const query = patient
+      ? supabaseAdmin.from('appointments').select('id, date, time, procedure').eq('clinic_id', CLINIC_ID).eq('hn', patient.hn).gte('date', today).order('date').limit(3)
+      : supabaseAdmin.from('appointments').select('id, date, time, procedure').eq('clinic_id', CLINIC_ID).eq('line_user_id', userId).gte('date', today).order('date').limit(3);
+    const { data: appts } = await query;
+    if (!appts || appts.length === 0) {
+      return replyText(replyToken, 'ไม่พบนัดหมายที่จะถึงในระบบค่ะ\nหากต้องการจองใหม่ พิมพ์ "จองนัด" ได้เลยนะคะ 😊');
+    }
+    if (appts.length === 1) {
+      const a = appts[0];
+      await setSession(userId, 'waiting_date', { rescheduleApptId: a.id, oldDate: a.date, oldTime: a.time });
+      const days = next7Days();
+      return reply(replyToken, [
+        { type: 'text', text: `เลื่อนนัดจาก ${thaiDateLabel(a.date)} ${a.time} น.\nต้องการนัดวันใหม่วันไหนคะ? 📅` },
+        quickReply(days.map(d => ({ label: d.label, text: d.value }))),
+      ]);
+    }
+    // มีหลายนัด → ให้เลือก
+    await setSession(userId, 'waiting_reschedule_select', { appts });
+    return reply(replyToken, [
+      { type: 'text', text: 'ต้องการเลื่อนนัดไหนคะ?' },
+      quickReply(appts.map(a => ({
+        label: `${new Date(a.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })} ${a.time}`,
+        text: a.id,
+      }))),
+    ]);
   }
 
   // ── ยืนยันนัด (จากปุ่ม Flex reminder) ─────────────────────
