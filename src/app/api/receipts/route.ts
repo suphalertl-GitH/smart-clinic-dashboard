@@ -27,54 +27,74 @@ function generateReceiptHtml(data: {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet">
-    </head><body style="font-family:'Sarabun',sans-serif;background:#fff;margin:0;padding:20px;">
-    <div style="width:650px;margin:auto;border-radius:15px;border:1px solid #fce4ec;overflow:hidden;">
-      <div style="background:#fce4ec;padding:40px;">
-        <table style="width:100%;border:none;"><tr>
-          <td style="width:50%;">
-            <h1 style="margin:0;font-size:32px;color:#333;">${CLINIC_INFO.name}</h1>
-            <div style="font-size:14px;color:#555;letter-spacing:2px;">CLINIC</div>
-          </td>
-          <td style="width:50%;text-align:right;">
-            <h2 style="margin:0;font-size:26px;color:#333;">ใบเสร็จรับเงิน</h2>
-            <div style="font-size:14px;color:#555;">RECEIPT</div>
-          </td>
-        </tr></table>
+    <style>
+      body { font-family:'Sarabun',sans-serif; background:#fff; margin:0; padding:12px; }
+      .wrap { max-width:650px; margin:auto; border-radius:15px; border:1px solid #fce4ec; overflow:hidden; }
+      .header { background:#fce4ec; padding:24px; }
+      .header-row { display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px; }
+      .body { padding:20px 24px; }
+      .info-row { display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px; font-size:14px; color:#444; margin-bottom:20px; }
+      table { width:100%; border-collapse:collapse; font-size:14px; }
+      th { background:#f8bbd0; color:#333; padding:10px; text-align:left; }
+      th:last-child { text-align:right; }
+      td { padding:10px; border-bottom:1px solid #fce4ec; color:#555; }
+      td:last-child { text-align:right; color:#333; font-weight:600; }
+      td:first-child { text-align:center; width:40px; }
+      .total-box { margin-top:16px; text-align:right; }
+      .total-inner { display:inline-block; background:#fce4ec; padding:12px 24px; border-radius:8px; }
+      @media(max-width:480px){
+        .info-row { flex-direction:column; }
+        th, td { font-size:13px; padding:8px 6px; }
+      }
+    </style>
+    </head><body>
+    <div class="wrap">
+      <div class="header">
+        <div class="header-row">
+          <div>
+            <h1 style="margin:0;font-size:26px;color:#333;">${CLINIC_INFO.name}</h1>
+            <div style="font-size:13px;color:#555;letter-spacing:2px;">CLINIC</div>
+          </div>
+          <div style="text-align:right;">
+            <h2 style="margin:0;font-size:22px;color:#333;">ใบเสร็จรับเงิน</h2>
+            <div style="font-size:13px;color:#555;">RECEIPT</div>
+          </div>
+        </div>
       </div>
-      <div style="padding:30px 40px;">
-        <table style="width:100%;font-size:14px;color:#444;margin-bottom:30px;"><tr>
-          <td style="width:50%;vertical-align:top;">
+      <div class="body">
+        <div class="info-row">
+          <div>
             <b style="color:#333;">ข้อมูลลูกค้า:</b><br>คุณ ${data.fullName}<br><b>HN:</b> ${data.hn}
-          </td>
-          <td style="width:50%;vertical-align:top;text-align:right;">
+          </div>
+          <div style="text-align:right;">
             <b style="color:#333;">${CLINIC_INFO.nameTh}</b><br>
             ${CLINIC_INFO.address}<br>
             <b>Tel:</b> ${CLINIC_INFO.phone}<br>
             <b>วันที่:</b> ${data.date}
-          </td>
-        </tr></table>
-        <table style="width:100%;border-collapse:collapse;font-size:14px;">
-          <thead><tr style="background:#f8bbd0;color:#333;">
-            <th style="padding:10px;text-align:center;width:60px;">ลำดับ</th>
-            <th style="padding:10px;text-align:left;">รายการ</th>
-            <th style="padding:10px;text-align:right;width:120px;">ราคา</th>
+          </div>
+        </div>
+        <table>
+          <thead><tr>
+            <th style="text-align:center;">ลำดับ</th>
+            <th>รายการ</th>
+            <th style="text-align:right;">ราคา</th>
           </tr></thead>
           <tbody>${itemsHtml}</tbody>
         </table>
-        <div style="margin-top:20px;text-align:right;">
-          <div style="display:inline-block;background:#fce4ec;padding:15px 30px;border-radius:8px;">
-            <span style="color:#555;margin-right:20px;font-size:14px;">ราคารวมสุทธิ</span>
-            <b style="color:#333;font-size:20px;">${data.total.toLocaleString()} บาท</b>
+        <div class="total-box">
+          <div class="total-inner">
+            <span style="color:#555;margin-right:16px;font-size:14px;">ราคารวมสุทธิ</span>
+            <b style="color:#333;font-size:18px;">${data.total.toLocaleString()} บาท</b>
           </div>
         </div>
-        <div style="margin-top:40px;font-size:14px;color:#555;">
+        <div style="margin-top:24px;font-size:14px;color:#555;">
           <p><b>วิธีชำระเงิน:</b> ${data.payment}</p>
-          <div style="text-align:right;margin-top:10px;">
+          <div style="text-align:right;margin-top:8px;">
             <p>ผู้รับเงิน: ${data.receiver}</p>
             <p style="color:#bbb;font-size:12px;">(ลงชื่อพนักงาน)</p>
           </div>
         </div>
-        <div style="margin-top:40px;text-align:center;color:#888;font-size:12px;font-style:italic;">
+        <div style="margin-top:24px;text-align:center;color:#888;font-size:12px;font-style:italic;">
           " ${CLINIC_INFO.nameTh} ขอบคุณลูกค้าที่ใช้บริการ "
         </div>
       </div>

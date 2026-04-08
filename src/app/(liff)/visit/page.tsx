@@ -57,6 +57,7 @@ export default function VisitPage() {
   const [genPdf, setGenPdf] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [qrLoading, setQrLoading] = useState(false);
+  const [qrError, setQrError] = useState('');
 
   // Reprint modal
   const [reprintModal, setReprintModal] = useState(false);
@@ -140,16 +141,18 @@ export default function VisitPage() {
       setReceiptModal(true);
       setSuccess('บันทึก Visit สำเร็จ');
 
-      // โหลด QR PromptPay เสมอ (ไม่ว่าจะเลือก payMethod อะไร แสดงเฉพาะตอนโอน)
-      if (total > 0) {
-        setQrLoading(true);
-        setQrDataUrl('');
-        fetch(`/api/promptpay?amount=${total}`)
-          .then(r => r.json())
-          .then(d => { if (d.qr) setQrDataUrl(d.qr); })
-          .catch(() => {})
-          .finally(() => setQrLoading(false));
-      }
+      // โหลด QR PromptPay
+      setQrDataUrl('');
+      setQrError('');
+      setQrLoading(true);
+      fetch(`/api/promptpay?amount=${total}`)
+        .then(r => r.json())
+        .then(d => {
+          if (d.qr) setQrDataUrl(d.qr);
+          else setQrError(d.error ?? 'ไม่พบ PROMPTPAY_ID');
+        })
+        .catch(e => setQrError(e.message))
+        .finally(() => setQrLoading(false));
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -389,21 +392,17 @@ export default function VisitPage() {
             </div>
           </div>
 
-          {/* PromptPay QR */}
-          {payMethod === 'โอน' && (
-            <div className="flex flex-col items-center py-2 border rounded-xl bg-gray-50">
-              {qrLoading ? (
-                <p className="text-sm text-gray-400 py-4">กำลังโหลด QR...</p>
-              ) : qrDataUrl ? (
-                <>
-                  <img src={qrDataUrl} alt="PromptPay QR" className="w-44 h-44" />
-                  <p className="text-xs text-gray-500 mt-1">สแกนพร้อมเพย์ {receiptTotal.toLocaleString()} บาท</p>
-                </>
-              ) : (
-                <p className="text-xs text-gray-400 py-4">ไม่พบ PROMPTPAY_ID</p>
-              )}
-            </div>
-          )}
+          {/* PromptPay QR — แสดงเสมอ */}
+          <div className="flex flex-col items-center py-3 border rounded-xl bg-gray-50">
+            <p className="text-xs font-semibold text-gray-500 mb-2">💳 PromptPay {receiptTotal.toLocaleString()} บาท</p>
+            {qrLoading ? (
+              <p className="text-sm text-gray-400 py-4">กำลังโหลด QR...</p>
+            ) : qrDataUrl ? (
+              <img src={qrDataUrl} alt="PromptPay QR" className="w-48 h-48" />
+            ) : (
+              <p className="text-xs text-red-400 py-2">{qrError || 'โหลด QR ไม่สำเร็จ'}</p>
+            )}
+          </div>
 
           {!receiptUrl ? (
             <div className="space-y-3 mt-2">
