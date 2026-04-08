@@ -400,15 +400,16 @@ async function handleTextMessage(event: any) {
 
   // ── STEP: waiting_reschedule_select ──────────────────────
   if (session.step === 'waiting_reschedule_select') {
-    // ลูกค้าเลือกนัดที่จะเลื่อน (ส่ง appt id มาจากปุ่ม)
-    const apptId = text;
     const appts = (session.data as any).appts as any[];
-    const selected = appts?.find((a: any) => a.id === apptId);
-    if (!selected) return replyText(replyToken, 'กรุณาเลือกจากรายการด้านบนค่ะ');
-    await setSession(userId, 'waiting_date', { rescheduleApptId: apptId, oldDate: selected.date, oldTime: selected.time });
+    // รับ index เช่น "นัด1", "นัด2"
+    const idxMatch = text.match(/^นัด(\d+)$/);
+    const idx = idxMatch ? parseInt(idxMatch[1]) - 1 : -1;
+    const selected = appts?.[idx];
+    if (!selected) return replyText(replyToken, 'กรุณาเลือกจากปุ่มด้านบนค่ะ');
+    await setSession(userId, 'waiting_date', { rescheduleApptId: selected.id, oldDate: selected.date, oldTime: selected.time });
     const days = next7Days();
     return reply(replyToken, [
-      { type: 'text', text: `เลื่อนนัดจาก ${thaiDateLabel(selected.date)} ${selected.time} น.\nต้องการนัดวันใหม่วันไหนคะ? 📅` },
+      { type: 'text', text: `เลื่อนนัดจาก ${thaiDateLabel(selected.date)} ${selected.time} น.${selected.procedure ? ` (${selected.procedure})` : ''}\nต้องการนัดวันใหม่วันไหนคะ? 📅` },
       quickReply(days.map(d => ({ label: d.label, text: d.value }))),
     ]);
   }
@@ -449,11 +450,14 @@ async function handleTextMessage(event: any) {
       ]);
     }
     await setSession(userId, 'waiting_reschedule_select', { appts: reschedAppts });
+    const apptLines = reschedAppts.map((a, i) =>
+      `${i + 1}. ${thaiDateLabel(a.date)} ${a.time} น.${a.procedure ? ` (${a.procedure})` : ''}`
+    ).join('\n');
     return reply(replyToken, [
-      { type: 'text', text: 'ต้องการเลื่อนนัดไหนคะ?' },
-      quickReply(reschedAppts.map(a => ({
-        label: `${new Date(a.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })} ${a.time}`,
-        text: a.id,
+      { type: 'text', text: `ต้องการเลื่อนนัดไหนคะ?\n${apptLines}` },
+      quickReply(reschedAppts.map((a, i) => ({
+        label: `นัด ${i + 1} — ${new Date(a.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}`,
+        text: `นัด${i + 1}`,
       }))),
     ]);
   }
