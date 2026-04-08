@@ -9,17 +9,15 @@ const LINE_PUSH_API = 'https://api.line.me/v2/bot/message/push';
 
 const SYSTEM_PROMPT = `คุณคือ AI assistant ของ ${CLINIC.name} คลินิกความงาม
 ตอบเป็นภาษาไทย กระชับ เป็นมิตร ไม่เกิน 3-4 ประโยค
-
 ข้อมูลคลินิก:
 - ชื่อ: ${CLINIC.name}
 - เบอร์โทร: ${CLINIC.phone}
 - บริการ: Botox, Filler, Sculptra, Profhilo, Juvelook, Rejuran, Ultherapy, Ultraformer, Oligio, Fat, Mounjaro, IV Drip, Hair
 - เวลาเปิด: 11:00-19:00 น. ทุกวัน
-
 ถ้าถามเรื่องราคา: แนะนำให้โทรสอบถามหรือ DM เพราะราคาขึ้นกับการประเมินของแพทย์
-ถ้าถามเรื่องนัด: บอกให้แจ้งชื่อ-นามสกุล เพื่อเช็คนัดหมาย
 ห้ามแต่งข้อมูลที่ไม่รู้`;
 
+// ── LINE API helpers ──────────────────────────────────────────
 async function linePost(url: string, body: object) {
   return fetch(url, {
     method: 'POST',
@@ -31,36 +29,212 @@ async function linePost(url: string, body: object) {
   });
 }
 
-async function replyText(replyToken: string, text: string) {
-  return linePost(LINE_REPLY_API, {
-    replyToken,
-    messages: [{ type: 'text', text }],
-  });
+async function reply(replyToken: string, messages: object[]) {
+  return linePost(LINE_REPLY_API, { replyToken, messages });
+}
+
+function replyText(replyToken: string, text: string) {
+  return reply(replyToken, [{ type: 'text', text }]);
 }
 
 async function pushText(to: string, text: string) {
-  return linePost(LINE_PUSH_API, {
-    to,
-    messages: [{ type: 'text', text }],
+  return linePost(LINE_PUSH_API, { to, messages: [{ type: 'text', text }] });
+}
+
+// ── Session helpers ───────────────────────────────────────────
+async function getSession(userId: string) {
+  const { data } = await supabaseAdmin
+    .from('chat_sessions')
+    .select('step, data')
+    .eq('clinic_id', CLINIC_ID)
+    .eq('line_user_id', userId)
+    .single();
+  return data ?? { step: 'idle', data: {} };
+}
+
+async function setSession(userId: string, step: string, data: object) {
+  await supabaseAdmin.from('chat_sessions').upsert({
+    clinic_id: CLINIC_ID,
+    line_user_id: userId,
+    step,
+    data,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'clinic_id,line_user_id' });
+}
+
+async function clearSession(userId: string) {
+  await setSession(userId, 'idle', {});
+}
+
+// ── Date helpers ──────────────────────────────────────────────
+function thaiDateLabel(dateStr: string) {
+  return new Date(dateStr).toLocaleDateString('th-TH', {
+    weekday: 'long', day: 'numeric', month: 'long',
   });
 }
 
+function next7Days(): { label: string; value: string }[] {
+  const days = [];
+  for (let i = 1; i <= 7; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    const value = d.toISOString().split('T')[0];
+    const label = d.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' });
+    days.push({ label, value });
+  }
+  return days;
+}
+
+function parseDate(text: string): string | null {
+  const today = new Date();
+  const t = text.trim();
+  if (t.includes('วันนี้')) { return today.toISOString().split('T')[0]; }
+  if (t.includes('พรุ่งนี้')) {
+    const d = new Date(today); d.setDate(d.getDate() + 1);
+    return d.toISOString().split('T')[0];
+  }
+  // รูปแบบ YYYY-MM-DD (จากปุ่ม quick reply)
+  const iso = t.match(/^(\d{4}-\d{2}-\d{2})$/);
+  if (iso) return iso[1];
+  // รูปแบบ d/m หรือ dd/mm
+  const dmy = t.match(/^(\d{1,2})[\/\-](\d{1,2})$/);
+  if (dmy) {
+    const year = today.getFullYear();
+    const month = parseInt(dmy[2]);
+    const day = parseInt(dmy[1]);
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+  return null;
+}
+
+// ── Available slots ───────────────────────────────────────────
+async function getAvailableSlots(date: string): Promise<string[]> {
+  const [settingsRes, bookedRes] = await Promise.all([
+    supabaseAdmin.from('settings').select('time_slots').eq('clinic_id', CLINIC_ID).single(),
+    supabaseAdmin.from('appointments').select('time').eq('clinic_id', CLINIC_ID).eq('date', date),
+  ]);
+  const allSlots: string[] = settingsRes.data?.time_slots ?? [];
+  const booked = new Set((bookedRes.data ?? []).map((a: any) => a.time));
+  return allSlots.filter(s => !booked.has(s));
+}
+
+// ── Quick reply builder ───────────────────────────────────────
+function quickReply(items: { label: string; text: string }[]) {
+  return {
+    type: 'text',
+    text: 'เลือกได้เลยค่ะ 👇',
+    quickReply: {
+      items: items.slice(0, 13).map(i => ({
+        type: 'action',
+        action: { type: 'message', label: i.label, text: i.text },
+      })),
+    },
+  };
+}
+
+// ── Main message handler ──────────────────────────────────────
 async function handleTextMessage(event: any) {
-  const text: string = event.message?.text ?? '';
+  const text: string = event.message?.text?.trim() ?? '';
   const userId: string = event.source?.userId ?? '';
   const replyToken: string = event.replyToken ?? '';
-  const lowerText = text.toLowerCase().trim();
+  const lower = text.toLowerCase();
 
-  // คำสั่ง: โปรโมชั่น
-  if (lowerText.includes('โปร') || lowerText.includes('ส่วนลด') || lowerText.includes('ราคาพิเศษ') || lowerText.includes('promotion') || lowerText.includes('deal')) {
+  // ยกเลิก / reset
+  if (lower === 'ยกเลิก' || lower === 'cancel' || lower === 'เริ่มใหม่') {
+    await clearSession(userId);
+    return replyText(replyToken, 'รับทราบค่ะ ยกเลิกแล้ว 😊\nมีอะไรให้ช่วยอีกไหมคะ?');
+  }
+
+  const session = await getSession(userId);
+
+  // ── STEP: waiting_date ────────────────────────────────────
+  if (session.step === 'waiting_date') {
+    const date = parseDate(text);
+    if (!date) {
+      return replyText(replyToken, 'ไม่เข้าใจวันที่ค่ะ กรุณาเลือกจากปุ่มด้านบน หรือพิมพ์ เช่น "พรุ่งนี้" หรือ "9/4" ค่ะ');
+    }
+    const slots = await getAvailableSlots(date);
+    if (slots.length === 0) {
+      await clearSession(userId);
+      return replyText(replyToken, `วัน${thaiDateLabel(date)} เต็มแล้วค่ะ 😔\nกรุณาเลือกวันอื่น หรือโทร ${CLINIC.phone} ค่ะ`);
+    }
+    await setSession(userId, 'waiting_slot', { date });
+    const qr = quickReply(slots.map(s => ({ label: s, text: s })));
+    return reply(replyToken, [
+      { type: 'text', text: `วัน${thaiDateLabel(date)} มีช่วงเวลาว่างดังนี้ค่ะ 📅` },
+      qr,
+    ]);
+  }
+
+  // ── STEP: waiting_slot ────────────────────────────────────
+  if (session.step === 'waiting_slot') {
+    const timeMatch = text.match(/^(\d{1,2}:\d{2})$/);
+    if (!timeMatch) {
+      return replyText(replyToken, 'กรุณาเลือกเวลาจากปุ่มด้านบนค่ะ');
+    }
+    const time = timeMatch[1];
+    const date = (session.data as any).date;
+    await setSession(userId, 'waiting_confirm', { date, time });
+    return reply(replyToken, [{
+      type: 'text',
+      text: `ยืนยันนัดหมายค่ะ 📋\n📅 ${thaiDateLabel(date)}\n⏰ ${time} น.\n\nถูกต้องไหมคะ?`,
+      quickReply: {
+        items: [
+          { type: 'action', action: { type: 'message', label: '✅ ยืนยัน', text: 'ยืนยัน' } },
+          { type: 'action', action: { type: 'message', label: '❌ ยกเลิก', text: 'ยกเลิก' } },
+        ],
+      },
+    }]);
+  }
+
+  // ── STEP: waiting_confirm ─────────────────────────────────
+  if (session.step === 'waiting_confirm') {
+    if (lower === 'ยืนยัน' || lower === 'ใช่' || lower === 'ok' || lower === 'โอเค') {
+      const { date, time } = session.data as any;
+
+      // ดึงข้อมูลคนไข้
+      const { data: patient } = await supabaseAdmin
+        .from('patients').select('full_name, phone, hn')
+        .eq('clinic_id', CLINIC_ID).eq('line_user_id', userId).single();
+
+      const name = patient?.full_name ?? 'ลูกค้า LINE';
+      const phone = patient?.phone ?? '-';
+      const hn = patient?.hn ?? null;
+
+      // จองนัด
+      await supabaseAdmin.from('appointments').insert({
+        clinic_id: CLINIC_ID,
+        hn,
+        name,
+        phone,
+        date,
+        time,
+        status: 'returning',
+        line_user_id: userId,
+        note: 'จองผ่าน LINE Chatbot',
+      });
+
+      // แจ้ง admin group
+      const groupId = process.env.LINE_GROUP_ID;
+      if (groupId) {
+        pushText(groupId, `📅 จองผ่าน LINE\n👤 ${name}  📞 ${phone}\n🕐 ${thaiDateLabel(date)} ${time} น.`).catch(() => {});
+      }
+
+      await clearSession(userId);
+      return replyText(replyToken, `จองนัดเรียบร้อยแล้วค่ะ ✅\n📅 ${thaiDateLabel(date)}\n⏰ ${time} น.\n\nทีมงานจะติดต่อยืนยันอีกครั้งนะคะ 😊\nสอบถาม: ${CLINIC.phone}`);
+    } else {
+      await clearSession(userId);
+      return replyText(replyToken, 'ยกเลิกการจองแล้วค่ะ 😊\nหากต้องการนัดใหม่ พิมพ์ "จองนัด" ได้เลยนะคะ');
+    }
+  }
+
+  // ── โปรโมชั่น ─────────────────────────────────────────────
+  if (lower.includes('โปร') || lower.includes('ส่วนลด') || lower.includes('ราคาพิเศษ') || lower.includes('promotion')) {
     const today = new Date().toISOString().split('T')[0];
     const { data: promos } = await supabaseAdmin
-      .from('promotions')
-      .select('title, description, price, valid_from, valid_until')
-      .eq('clinic_id', CLINIC_ID)
-      .eq('is_active', true)
-      .lte('valid_from', today)
-      .gte('valid_until', today)
+      .from('promotions').select('title, description, price, valid_until')
+      .eq('clinic_id', CLINIC_ID).eq('is_active', true)
+      .lte('valid_from', today).gte('valid_until', today)
       .order('valid_until', { ascending: true });
 
     if (promos && promos.length > 0) {
@@ -68,102 +242,85 @@ async function handleTextMessage(event: any) {
         const until = new Date(p.valid_until).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
         return `🌟 ${p.title}\n   ${p.description ?? ''}\n   💰 ${p.price ?? ''}\n   ⏰ ถึง ${until}`;
       }).join('\n\n');
-      return replyText(replyToken, `โปรโมชั่นที่มีอยู่ตอนนี้ค่ะ 🎉\n\n${lines}\n\n📞 สอบถาม/จองได้เลยที่ ${CLINIC.phone} ค่ะ`);
-    } else {
-      return replyText(replyToken, `ขณะนี้ยังไม่มีโปรโมชั่นพิเศษค่ะ\nติดตามได้ที่ LINE นี้เลยนะคะ 😊\n📞 ${CLINIC.phone}`);
+      return replyText(replyToken, `โปรโมชั่นที่มีอยู่ตอนนี้ค่ะ 🎉\n\n${lines}\n\n📞 สอบถาม/จอง: ${CLINIC.phone}`);
     }
+    return replyText(replyToken, `ขณะนี้ยังไม่มีโปรโมชั่นพิเศษค่ะ\nติดตามได้ที่ LINE นี้เลยนะคะ 😊`);
   }
 
-  // คำสั่ง: เช็คนัด
-  if (lowerText.includes('นัด') || lowerText.includes('appointment') || lowerText.includes('คิว')) {
+  // ── เช็คนัดหมาย ────────────────────────────────────────────
+  if (lower.includes('นัด') || lower.includes('คิว') || lower.includes('appointment')) {
+    // ถ้าถามว่าว่างไหม / จองนัด → เริ่ม booking flow
+    if (lower.includes('จอง') || lower.includes('ว่าง') || lower.includes('ตาราง') || lower.includes('หมอ')) {
+      await setSession(userId, 'waiting_date', {});
+      const days = next7Days();
+      return reply(replyToken, [
+        { type: 'text', text: 'ต้องการนัดวันไหนคะ? 📅' },
+        quickReply(days.map(d => ({ label: d.label, text: d.value }))),
+      ]);
+    }
+
+    // เช็คนัดของตัวเอง
     const { data: appts } = await supabaseAdmin
-      .from('appointments')
-      .select('name, date, time, procedure')
-      .eq('clinic_id', CLINIC_ID)
-      .eq('line_user_id', userId)
+      .from('appointments').select('name, date, time, procedure')
+      .eq('clinic_id', CLINIC_ID).eq('line_user_id', userId)
       .gte('date', new Date().toISOString().split('T')[0])
-      .order('date', { ascending: true })
-      .limit(3);
+      .order('date', { ascending: true }).limit(3);
 
     if (appts && appts.length > 0) {
-      const lines = appts.map(a => {
-        const d = new Date(a.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
-        return `📅 ${d} เวลา ${a.time} น.${a.procedure ? ` (${a.procedure})` : ''}`;
-      }).join('\n');
-      return replyText(replyToken, `นัดหมายของคุณที่จะถึง:\n${lines}\n\nสอบถามเพิ่มเติม: ${CLINIC.phone}`);
-    } else {
-      return replyText(replyToken, `ไม่พบนัดหมายที่จะถึงในระบบค่ะ\nหากต้องการนัดใหม่ กรุณาโทร ${CLINIC.phone} หรือ DM มาได้เลยค่ะ 😊`);
+      const lines = appts.map(a => `📅 ${thaiDateLabel(a.date)} เวลา ${a.time} น.${a.procedure ? ` (${a.procedure})` : ''}`).join('\n');
+      return replyText(replyToken, `นัดหมายของคุณที่จะถึง:\n${lines}\n\nสอบถาม: ${CLINIC.phone}`);
     }
+    return replyText(replyToken, `ไม่พบนัดหมายในระบบค่ะ\nต้องการจองนัดใหม่ไหมคะ?`, );
   }
 
-  // คำสั่ง: ยืนยันนัดหมาย (จากปุ่มใน Flex Message)
-  if (lowerText === 'ยืนยันนัดหมาย') {
+  // ── ยืนยันนัด (จากปุ่ม Flex reminder) ─────────────────────
+  if (lower === 'ยืนยันนัดหมาย') {
     const groupId = process.env.LINE_GROUP_ID;
     if (groupId) {
-      // ดึงชื่อจาก patients
-      const { data: patient } = await supabaseAdmin
-        .from('patients')
-        .select('full_name')
-        .eq('clinic_id', CLINIC_ID)
-        .eq('line_user_id', userId)
-        .single();
-      const name = patient?.full_name ?? 'ลูกค้า';
-      pushText(groupId, `✅ ${name} ยืนยันนัดหมายแล้ว`).catch(() => {});
+      const { data: patient } = await supabaseAdmin.from('patients').select('full_name').eq('clinic_id', CLINIC_ID).eq('line_user_id', userId).single();
+      pushText(groupId, `✅ ${patient?.full_name ?? 'ลูกค้า'} ยืนยันนัดหมายแล้ว`).catch(() => {});
     }
-    return replyText(replyToken, `ขอบคุณที่ยืนยันนัดหมายค่ะ 🙏\nพบกันในวันนัดนะคะ!\n\nหากต้องการเปลี่ยนแปลง โทร ${CLINIC.phone} ได้เลยค่ะ`);
+    return replyText(replyToken, `ขอบคุณที่ยืนยันนัดหมายค่ะ 🙏\nพบกันในวันนัดนะคะ!\nสอบถาม: ${CLINIC.phone}`);
   }
 
-  // คำสั่ง: ขอเลื่อนนัดหมาย
-  if (lowerText.includes('เลื่อน') || lowerText === 'ขอเลื่อนนัดหมาย') {
+  // ── เลื่อนนัด ──────────────────────────────────────────────
+  if (lower.includes('เลื่อน') || lower === 'ขอเลื่อนนัดหมาย') {
     const groupId = process.env.LINE_GROUP_ID;
     if (groupId) {
-      const { data: patient } = await supabaseAdmin
-        .from('patients')
-        .select('full_name')
-        .eq('clinic_id', CLINIC_ID)
-        .eq('line_user_id', userId)
-        .single();
-      const name = patient?.full_name ?? userId;
-      pushText(groupId, `⚠️ ${name} ขอเลื่อนนัดหมาย กรุณาติดต่อกลับ`).catch(() => {});
+      const { data: patient } = await supabaseAdmin.from('patients').select('full_name').eq('clinic_id', CLINIC_ID).eq('line_user_id', userId).single();
+      pushText(groupId, `⚠️ ${patient?.full_name ?? userId} ขอเลื่อนนัด กรุณาติดต่อกลับ`).catch(() => {});
     }
-    return replyText(replyToken, `รับทราบค่ะ ทีมงานจะติดต่อกลับเพื่อนัดวันใหม่นะคะ 😊\nหรือโทรหาเราได้เลยที่ ${CLINIC.phone} ค่ะ`);
+    return replyText(replyToken, `รับทราบค่ะ ทีมงานจะติดต่อกลับเพื่อนัดวันใหม่นะคะ 😊\nหรือโทร ${CLINIC.phone} ได้เลยค่ะ`);
   }
 
-  // AI ตอบคำถามทั่วไป
+  // ── AI ตอบทั่วไป ───────────────────────────────────────────
   try {
     const answer = await claudeComplete(text, SYSTEM_PROMPT);
     return replyText(replyToken, answer);
   } catch {
-    return replyText(replyToken, `ขอโทษค่ะ ระบบขัดข้องชั่วคราว\nกรุณาโทรสอบถามที่ ${CLINIC.phone} ได้เลยค่ะ 🙏`);
+    return replyText(replyToken, `ขอโทษค่ะ ระบบขัดข้องชั่วคราว\nกรุณาโทร ${CLINIC.phone} ค่ะ 🙏`);
   }
 }
 
+// ── Webhook entry point ───────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const events = body.events ?? [];
-
-    for (const event of events) {
-      // แจ้ง group เมื่อมี follow หรือ unfollow
+    for (const event of body.events ?? []) {
       if (event.type === 'follow') {
         const groupId = process.env.LINE_GROUP_ID;
-        if (groupId) {
-          pushText(groupId, `🆕 มีคนเพิ่มเพื่อน LINE OA ใหม่`).catch(() => {});
-        }
-        await replyText(event.replyToken, `สวัสดีค่ะ ยินดีต้อนรับสู่ ${CLINIC.name} 🌸\n\nสามารถสอบถามข้อมูลบริการ, เช็คนัดหมาย หรือพิมพ์ "นัด" เพื่อดูนัดของคุณได้เลยค่ะ\n\n📞 ${CLINIC.phone}`);
+        if (groupId) pushText(groupId, `🆕 มีคนเพิ่มเพื่อน LINE OA ใหม่`).catch(() => {});
+        await replyText(event.replyToken, `สวัสดีค่ะ ยินดีต้อนรับสู่ ${CLINIC.name} 🌸\n\nสามารถพิมพ์ได้เลยค่ะ เช่น\n• "โปรโมชั่น" — ดูโปรปัจจุบัน\n• "จองนัด" — นัดหมายกับหมอ\n• "นัด" — เช็คนัดของคุณ\n• หรือถามอะไรก็ได้ค่ะ 😊\n\n📞 ${CLINIC.phone}`);
         continue;
       }
-
       if (event.type === 'message' && event.message?.type === 'text') {
-        // ไม่ตอบ message จาก group (ตอบเฉพาะ 1:1)
-        if (event.source?.type === 'group') continue;
+        if (event.source?.type === 'group') continue; // ไม่ตอบในกลุ่ม
         await handleTextMessage(event);
       }
     }
   } catch (err) {
     console.error('Webhook error:', err);
   }
-
   return NextResponse.json({ ok: true });
 }
 
