@@ -51,6 +51,29 @@ async function handleTextMessage(event: any) {
   const replyToken: string = event.replyToken ?? '';
   const lowerText = text.toLowerCase().trim();
 
+  // คำสั่ง: โปรโมชั่น
+  if (lowerText.includes('โปร') || lowerText.includes('ส่วนลด') || lowerText.includes('ราคาพิเศษ') || lowerText.includes('promotion') || lowerText.includes('deal')) {
+    const today = new Date().toISOString().split('T')[0];
+    const { data: promos } = await supabaseAdmin
+      .from('promotions')
+      .select('title, description, price, valid_from, valid_until')
+      .eq('clinic_id', CLINIC_ID)
+      .eq('is_active', true)
+      .lte('valid_from', today)
+      .gte('valid_until', today)
+      .order('valid_until', { ascending: true });
+
+    if (promos && promos.length > 0) {
+      const lines = promos.map(p => {
+        const until = new Date(p.valid_until).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
+        return `🌟 ${p.title}\n   ${p.description ?? ''}\n   💰 ${p.price ?? ''}\n   ⏰ ถึง ${until}`;
+      }).join('\n\n');
+      return replyText(replyToken, `โปรโมชั่นที่มีอยู่ตอนนี้ค่ะ 🎉\n\n${lines}\n\n📞 สอบถาม/จองได้เลยที่ ${CLINIC.phone} ค่ะ`);
+    } else {
+      return replyText(replyToken, `ขณะนี้ยังไม่มีโปรโมชั่นพิเศษค่ะ\nติดตามได้ที่ LINE นี้เลยนะคะ 😊\n📞 ${CLINIC.phone}`);
+    }
+  }
+
   // คำสั่ง: เช็คนัด
   if (lowerText.includes('นัด') || lowerText.includes('appointment') || lowerText.includes('คิว')) {
     const { data: appts } = await supabaseAdmin
