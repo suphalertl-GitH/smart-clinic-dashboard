@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import generatePayload from 'promptpay-qr';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const generatePayload = require('promptpay-qr');
 import QRCode from 'qrcode';
 
 // GET /api/promptpay?amount=1500
