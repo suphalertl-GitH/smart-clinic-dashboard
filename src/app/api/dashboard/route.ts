@@ -64,6 +64,7 @@ export async function GET(req: NextRequest) {
 
   // Maps
   const monthlyRevenueMap: Record<string, number> = {};
+  const dailyRevenueMap: Record<string, number> = {};
   const monthlyNew: Record<string, number> = {};
   const monthlyRet: Record<string, number> = {};
   const treatmentMap: Record<string, number> = {};
@@ -86,6 +87,7 @@ export async function GET(req: NextRequest) {
 
     if (vDateStr === todayStr) revenueToday += revenue;
     monthlyRevenueMap[mk] = (monthlyRevenueMap[mk] || 0) + revenue;
+    dailyRevenueMap[vDateStr] = (dailyRevenueMap[vDateStr] || 0) + revenue;
 
     const ct = v.customer_type ?? '';
     if (ct === 'new') monthlyNew[mk] = (monthlyNew[mk] || 0) + 1;
@@ -161,8 +163,17 @@ export async function GET(req: NextRequest) {
       prevReturning: monthlyRet[prevMonthKey] || 0,
       conversionRate,
     },
-    revenueTrend: Object.entries(monthlyRevenueMap).filter(([k]) => k !== 'unknown')
-      .sort(([a], [b]) => a.localeCompare(b)).map(([k, revenue]) => ({ month: toLabel(k), revenue })),
+    revenueTrend: (() => {
+      const days: { month: string; revenue: number }[] = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(nowThai);
+        d.setDate(d.getDate() - i);
+        const key = d.toISOString().split('T')[0];
+        const label = `${d.getDate()}/${d.getMonth() + 1}`;
+        days.push({ month: label, revenue: dailyRevenueMap[key] || 0 });
+      }
+      return days;
+    })(),
     topTreatments: Object.entries(treatmentMap).sort(([, a], [, b]) => b - a).slice(0, 10).map(([name, revenue]) => ({ name, revenue })),
     appointmentsByStatus: [{ status: 'Completed', count: visits.length }],
     topDoctors: Object.entries(doctorMap).filter(([n]) => n !== 'Unknown' && n !== '')
