@@ -16,7 +16,7 @@ const GOLD      = '#D97706';
 type Props = { data: any };
 
 export default function SalesAnalytics({ data }: Props) {
-  const { revenueTrend, revenueShareByCategory, topDoctors, topServices, salesRanking } = data;
+  const { revenueTrendMonthly, revenueShareByCategory, topDoctors, topServices, salesRanking } = data;
   const [targets, setTargets] = useState<Record<string, number>>({});
 
   useEffect(() => {
@@ -46,7 +46,7 @@ export default function SalesAnalytics({ data }: Props) {
         <div className="lg:col-span-3 bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
           <h3 className="text-base font-heading font-semibold text-slate-800 mb-4">Revenue Trend (12 Months)</h3>
           <ResponsiveContainer width="100%" height={240}>
-            <AreaChart data={revenueTrend}>
+            <AreaChart data={revenueTrendMonthly}>
               <defs>
                 <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%"  stopColor={PRIMARY} stopOpacity={0.2} />

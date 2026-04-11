@@ -174,6 +174,17 @@ export async function GET(req: NextRequest) {
       }
       return days;
     })(),
+    revenueTrendMonthly: (() => {
+      const months: { month: string; revenue: number }[] = [];
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date(nowThai);
+        d.setMonth(d.getMonth() - i, 1);
+        const key = getMonthKey(d);
+        const label = toLabel(key);
+        months.push({ month: label, revenue: monthlyRevenueMap[key] || 0 });
+      }
+      return months;
+    })(),
     topTreatments: Object.entries(treatmentMap).sort(([, a], [, b]) => b - a).slice(0, 10).map(([name, revenue]) => ({ name, revenue })),
     appointmentsByStatus: [{ status: 'Completed', count: visits.length }],
     topDoctors: Object.entries(doctorMap).filter(([n]) => n !== 'Unknown' && n !== '')
