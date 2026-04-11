@@ -77,8 +77,11 @@ function syncPatients() {
     patients.push(p);
   }
 
-  var r = sendBatch(patients, "patients");
-  SpreadsheetApp.getUi().alert("Sync patients สำเร็จ! added:" + r.added + " updated:" + r.updated);
+  var res = UrlFetchApp.fetch(API_URL, {
+    method: "post", contentType: "application/json",
+    payload: JSON.stringify({ secret: SECRET, type: "bulk", data: { patients: patients } })
+  });
+  SpreadsheetApp.getUi().alert("Sync patients สำเร็จ!\\n" + res.getContentText());
 }
 
 // ส่งข้อมูล Visit ทั้งหมด
