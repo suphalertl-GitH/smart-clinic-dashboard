@@ -117,7 +117,15 @@ async function upsertVisit(v: any): Promise<'added' | 'updated'> {
   const { data: patient } = await supabaseAdmin
     .from('patients').select('id').eq('clinic_id', CLINIC_ID).eq('hn', hn).maybeSingle();
 
-  const row = {
+  // Parse created_at from Sheet timestamp if provided
+  let created_at: string | undefined;
+  if (v.created_at || v.timestamp) {
+    const raw = v.created_at || v.timestamp;
+    const d = new Date(raw);
+    if (!isNaN(d.getTime())) created_at = d.toISOString();
+  }
+
+  const row: any = {
     clinic_id: CLINIC_ID,
     patient_id: patient?.id || null,
     hn,
@@ -130,6 +138,7 @@ async function upsertVisit(v: any): Promise<'added' | 'updated'> {
     appt_date: v.appt_date || null,
     appt_time: v.appt_time || null,
   };
+  if (created_at) row.created_at = created_at;
 
   // เช็คซ้ำ: same hn + treatment + price (ป้องกัน duplicate)
   const { data: existing } = await supabaseAdmin
