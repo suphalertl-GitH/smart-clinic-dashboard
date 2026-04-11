@@ -4,10 +4,10 @@ import { supabaseAdmin } from '@/lib/supabase';
 const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
 
 // PATCH /api/promotions/[id] — update fields
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const body = await req.json();
-    const { id } = params;
+    const { id } = await params;
 
     // Only allow updating these fields
     const allowed = ['title', 'description', 'price', 'valid_from', 'valid_until', 'is_active'];
@@ -32,11 +32,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 // DELETE /api/promotions/[id]
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const { error } = await supabaseAdmin
     .from('promotions')
     .delete()
-    .eq('id', params.id)
+    .eq('id', id)
     .eq('clinic_id', CLINIC_ID);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

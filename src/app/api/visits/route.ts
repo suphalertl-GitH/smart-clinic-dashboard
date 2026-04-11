@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-
-const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
+import { getClinicId } from '@/lib/auth';
 
 // GET /api/visits?hn=HN00001&date=2024-01-01
 export async function GET(req: NextRequest) {
+  const clinic_id = await getClinicId();
+  if (!clinic_id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   const hn = req.nextUrl.searchParams.get('hn');
   const date = req.nextUrl.searchParams.get('date');
 
@@ -13,7 +15,7 @@ export async function GET(req: NextRequest) {
   let query = supabaseAdmin
     .from('visits')
     .select('id, hn, treatment_name, price, doctor, sales_name, payment_method, created_at')
-    .eq('clinic_id', CLINIC_ID)
+    .eq('clinic_id', clinic_id)
     .eq('hn', hn);
 
   if (date) {
@@ -33,6 +35,9 @@ export async function GET(req: NextRequest) {
 // POST /api/visits — บันทึก visit ใหม่
 export async function POST(req: NextRequest) {
   try {
+    const clinic_id = await getClinicId();
+    if (!clinic_id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const body = await req.json();
     const { hn, fullName, phone, treatmentName, price, salesName, doctor, customerType, paymentMethod, apptDate, apptTime, apptTreatmentName } = body;
 
@@ -44,7 +49,7 @@ export async function POST(req: NextRequest) {
     const { data: patient, error: patientErr } = await supabaseAdmin
       .from('patients')
       .select('id')
-      .eq('clinic_id', CLINIC_ID)
+      .eq('clinic_id', clinic_id)
       .eq('hn', hn)
       .single();
 
@@ -55,7 +60,7 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabaseAdmin
       .from('visits')
       .insert({
-        clinic_id: CLINIC_ID,
+        clinic_id: clinic_id,
         patient_id: patient.id,
         hn,
         treatment_name: treatmentName,
@@ -77,7 +82,7 @@ export async function POST(req: NextRequest) {
     const priceNum = parseFloat(price);
     try {
       await supabaseAdmin.rpc('add_visit_spending', {
-        p_clinic_id: CLINIC_ID,
+        p_clinic_id: clinic_id,
         p_hn: hn,
         p_amount: priceNum,
       });
@@ -87,7 +92,7 @@ export async function POST(req: NextRequest) {
     const { data: patientLine } = await supabaseAdmin
       .from('patients')
       .select('line_user_id, full_name, loyalty_tier')
-      .eq('clinic_id', CLINIC_ID)
+      .eq('clinic_id', clinic_id)
       .eq('hn', hn)
       .single();
 
@@ -128,7 +133,7 @@ export async function POST(req: NextRequest) {
     // ถ้ามีนัดหมายครั้งหน้า — สร้าง appointment ด้วย
     if (apptDate && apptTime) {
       await supabaseAdmin.from('appointments').insert({
-        clinic_id: CLINIC_ID,
+        clinic_id: clinic_id,
         patient_id: patient.id,
         hn,
         name: fullName,

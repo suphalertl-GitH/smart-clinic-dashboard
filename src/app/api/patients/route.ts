@@ -1,17 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { pushGroupMessage, textMessage } from '@/lib/line';
+import { getClinicId } from '@/lib/auth';
 
+// hardcoded fallback สำหรับ LIFF (patient self-registration)
 const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
 
-// GET /api/patients?search=HN00001
+// GET /api/patients?search=HN00001 — dashboard only (ต้อง login)
 export async function GET(req: NextRequest) {
+  const clinic_id = await getClinicId();
+  if (!clinic_id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   const search = req.nextUrl.searchParams.get('search') ?? '';
 
   const query = supabaseAdmin
     .from('patients')
     .select('id, hn, full_name, phone, sales_name, line_user_id, points')
-    .eq('clinic_id', CLINIC_ID)
+    .eq('clinic_id', clinic_id)
     .order('created_at', { ascending: false })
     .limit(200);
 

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Activity, RefreshCw, LayoutDashboard, BarChart2, Users,
   Megaphone, Stethoscope, Bell, Search, LogOut, HeartPulse,
-  Brain, Tag, Menu, X, ChevronRight, Settings,
+  Brain, Tag, Menu, X, ChevronRight, Settings, Sheet,
 } from 'lucide-react';
 import ExecutiveOverview from './_components/ExecutiveOverview';
 import SalesAnalytics from './_components/SalesAnalytics';
@@ -13,6 +13,7 @@ import CrmInsights from './_components/CrmInsights';
 import PredictiveDashboard from './_components/PredictiveDashboard';
 import PromotionsManager from './_components/PromotionsManager';
 import SettingsManager from './_components/SettingsManager';
+import SheetsSyncManager from './_components/SheetsSyncManager';
 import { MOCK_DASHBOARD } from '@/lib/mock-dashboard';
 
 // ── Theme Definitions ─────────────────────────────────────────
@@ -29,7 +30,7 @@ const THEMES: Record<ThemeKey, { bg: string; bgDark: string; accent: string; gra
 };
 
 // ── Nav items ─────────────────────────────────────────────────
-type NavId = 'overview' | 'sales' | 'customers' | 'crm' | 'promotions' | 'predictive' | 'settings';
+type NavId = 'overview' | 'sales' | 'customers' | 'crm' | 'promotions' | 'predictive' | 'sheets' | 'settings';
 const NAV: { id: NavId; label: string; icon: React.FC<any>; badge?: string }[] = [
   { id: 'overview',   label: 'แดชบอร์ด',          icon: LayoutDashboard },
   { id: 'sales',      label: 'Sales Analytics',   icon: BarChart2 },
@@ -37,6 +38,7 @@ const NAV: { id: NavId; label: string; icon: React.FC<any>; badge?: string }[] =
   { id: 'crm',        label: 'CRM & Campaigns',   icon: Megaphone },
   { id: 'promotions', label: 'Promotions',         icon: Tag },
   { id: 'predictive', label: 'Predictive AI',      icon: Brain, badge: 'AI' },
+  { id: 'sheets',     label: 'Google Sheets',      icon: Sheet },
   { id: 'settings',   label: 'Settings',           icon: Settings },
 ];
 const DISABLED_NAV = [
@@ -59,6 +61,7 @@ const PAGE_TITLE: Record<NavId, string> = {
   crm:        'CRM & Campaigns',
   promotions: 'Promotions',
   predictive: 'Predictive AI',
+  sheets:     'Google Sheets Sync',
   settings:   'Settings',
 };
 
@@ -349,6 +352,7 @@ export default function DashboardPage() {
               {activeNav === 'crm'        && <CrmInsights />}
               {activeNav === 'promotions' && <PromotionsManager />}
               {activeNav === 'predictive' && <PredictiveDashboard />}
+              {activeNav === 'sheets'     && <SheetsSyncManager />}
               {activeNav === 'settings'   && <SettingsManager />}
             </>
           ) : (
