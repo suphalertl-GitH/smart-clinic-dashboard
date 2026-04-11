@@ -5,8 +5,7 @@ function pct(cur: number, prev: number) {
 
 export function fmt(v: number) {
   return v >= 1_000_000 ? `฿${(v / 1_000_000).toFixed(1)}M`
-    : v >= 1_000 ? `฿${Math.round(v / 1_000)}K`
-    : `฿${v}`;
+    : `฿${v.toLocaleString('en-US')}`;
 }
 
 export function calcPct(cur: number, prev: number) { return pct(cur, prev); }
