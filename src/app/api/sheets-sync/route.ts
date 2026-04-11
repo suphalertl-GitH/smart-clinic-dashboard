@@ -109,9 +109,10 @@ async function upsertPatient(p: any): Promise<'added' | 'updated'> {
   }
 }
 
-async function upsertVisit(v: any): Promise<'added' | 'updated'> {
-  const hn = v.hn?.trim();
-  if (!hn) throw new Error('Missing HN');
+async function upsertVisit(v: any): Promise<'added' | 'updated' | 'skipped'> {
+  const hn = v.hn?.trim() || '';
+  const price = parseFloat(String(v.price ?? 0).replace(/,/g, '')) || 0;
+  if (price <= 0) return 'skipped'; // skip visits ที่ราคา 0
 
   // หา patient_id
   const { data: patient } = await supabaseAdmin
