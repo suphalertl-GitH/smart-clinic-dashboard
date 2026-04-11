@@ -44,6 +44,7 @@ export async function middleware(request: NextRequest) {
   return response;
 }
 
+// Disabled — Next.js 16 deprecated middleware, fix auth later
 export const config = {
-  matcher: ['/dashboard/:path*', '/login'],
+  matcher: [],
 };
