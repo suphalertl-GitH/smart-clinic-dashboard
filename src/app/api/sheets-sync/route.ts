@@ -1,200 +1,147 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { getSheetData, clearAndWriteSheet, testConnection } from '@/lib/google-sheets';
 
 const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
+const SYNC_SECRET = process.env.CRON_SECRET ?? 'clinic2026secret';
 
-// ── Column mapping ─────────────────────────────────────────
-// PatientDataGAS headers: Timestamp(A), HN(B), ชื่อ-นามสกุล(C), เบอร์โทรศัพท์(D),
-//   ประวัติแพ้ยา(E), โรคประจำตัว(F), อัปโหลดรูปใบหน้า(G), Source(H), Sales_Name(I), Consent(URL)(J)
-
-function sheetRowToPatient(row: string[]) {
-  return {
-    clinic_id: CLINIC_ID,
-    hn: row[1]?.trim() || '',
-    full_name: row[2]?.trim() || '',
-    phone: row[3]?.trim() || '',
-    allergies: row[4]?.trim() || null,
-    disease: row[5]?.trim() || null,
-    face_image_url: row[6]?.trim() || null,
-    source: row[7]?.trim() || null,
-    sales_name: row[8]?.trim() || null,
-    consent_image_url: row[9]?.trim() || null,
-  };
-}
-
-function patientToSheetRow(p: any): string[] {
-  return [
-    p.created_at ? new Date(p.created_at).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' }) : '',
-    p.hn || '',
-    p.full_name || '',
-    p.phone || '',
-    p.allergies || '',
-    p.disease || '',
-    p.face_image_url || '',
-    p.source || '',
-    p.sales_name || '',
-    p.consent_image_url || '',
-  ];
-}
-
-// VisitData headers: HN(A), Sales_name(B), ราคา(C), ยอดรวม(D), Timestamp(E),
-//   Treatment_Item(F), ชื่อแพทย์(G), Customer_Type(H), Payment(I),
-//   วันที่นัดหมาย(J), เวลานัดหมาย(K), ชื่อ(L), เบอร์โทร(M), หลักการทั่วไป(N), Note(O)
-
-function sheetRowToVisit(row: string[]) {
-  const price = parseFloat(row[2]?.replace(/,/g, '') || '0') || 0;
-  return {
-    clinic_id: CLINIC_ID,
-    hn: row[0]?.trim() || '',
-    sales_name: row[1]?.trim() || null,
-    price,
-    treatment_name: row[5]?.trim() || '',
-    doctor: row[6]?.trim() || null,
-    customer_type: row[7]?.trim() || 'returning',
-    payment_method: row[8]?.trim() || 'โอน',
-    appt_date: row[9]?.trim() || null,
-    appt_time: row[10]?.trim() || null,
-  };
-}
-
-function visitToSheetRow(v: any): string[] {
-  return [
-    v.hn || '',
-    v.sales_name || '',
-    v.price?.toString() || '0',
-    v.price?.toString() || '0',
-    v.created_at ? new Date(v.created_at).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' }) : '',
-    v.treatment_name || '',
-    v.doctor || '',
-    v.customer_type || 'returning',
-    v.payment_method || 'โอน',
-    v.appt_date || '',
-    v.appt_time || '',
-    '', // ชื่อ (denormalized, skip)
-    '', // เบอร์โทร (denormalized, skip)
-    '', // หลักการทั่วไป
-    '', // Note
-  ];
-}
-
-// ── Sync: Sheets → Supabase ────────────────────────────────
-async function sheetsToSupabase() {
-  const stats = { patients: { added: 0, updated: 0, skipped: 0 }, visits: { added: 0, updated: 0, skipped: 0 } };
-
-  // 1. Sync patients
-  const patientRows = await getSheetData('PatientDataGAS!A2:J');
-  for (const row of patientRows) {
-    const p = sheetRowToPatient(row);
-    if (!p.hn) { stats.patients.skipped++; continue; }
-
-    const { data: existing } = await supabaseAdmin
-      .from('patients').select('id').eq('clinic_id', CLINIC_ID).eq('hn', p.hn).maybeSingle();
-
-    if (existing) {
-      await supabaseAdmin.from('patients').update(p).eq('id', existing.id);
-      stats.patients.updated++;
-    } else {
-      await supabaseAdmin.from('patients').insert(p);
-      stats.patients.added++;
-    }
-  }
-
-  // 2. Sync visits
-  const visitRows = await getSheetData('VisitData!A2:O');
-  for (const row of visitRows) {
-    const v = sheetRowToVisit(row);
-    if (!v.hn || !v.treatment_name) { stats.visits.skipped++; continue; }
-
-    // Find patient_id by hn
-    const { data: patient } = await supabaseAdmin
-      .from('patients').select('id').eq('clinic_id', CLINIC_ID).eq('hn', v.hn).maybeSingle();
-
-    const visitData = { ...v, patient_id: patient?.id || null };
-
-    // Check if visit already exists (same hn + treatment + date)
-    const timestamp = row[4]?.trim();
-    let existing = null;
-    if (timestamp) {
-      const { data } = await supabaseAdmin
-        .from('visits').select('id').eq('clinic_id', CLINIC_ID).eq('hn', v.hn)
-        .eq('treatment_name', v.treatment_name).limit(1);
-      // Simple dedup: if same hn + treatment exists, update the latest
-      if (data && data.length > 0) existing = data[0];
-    }
-
-    if (existing) {
-      await supabaseAdmin.from('visits').update(visitData).eq('id', existing.id);
-      stats.visits.updated++;
-    } else {
-      await supabaseAdmin.from('visits').insert(visitData);
-      stats.visits.added++;
-    }
-  }
-
-  return stats;
-}
-
-// ── Sync: Supabase → Sheets ────────────────────────────────
-async function supabaseToSheets() {
-  const stats = { patients: { written: 0 }, visits: { written: 0 } };
-
-  // 1. Export patients
-  const { data: patients } = await supabaseAdmin
-    .from('patients').select('*').eq('clinic_id', CLINIC_ID).order('hn');
-  const patientRows = (patients ?? []).map(patientToSheetRow);
-  await clearAndWriteSheet('PatientDataGAS!A2:J', patientRows);
-  stats.patients.written = patientRows.length;
-
-  // 2. Export visits
-  const { data: visits } = await supabaseAdmin
-    .from('visits').select('*').eq('clinic_id', CLINIC_ID).order('created_at', { ascending: false });
-  const visitRows = (visits ?? []).map(visitToSheetRow);
-  await clearAndWriteSheet('VisitData!A2:O', visitRows);
-  stats.visits.written = visitRows.length;
-
-  return stats;
-}
-
-// ── Sync: Two-way ──────────────────────────────────────────
-async function twoWaySync() {
-  // Step 1: Sheets → Supabase (import new data from sheets)
-  const importStats = await sheetsToSupabase();
-
-  // Step 2: Supabase → Sheets (export all data back to sheets, now including any Supabase-only data)
-  const exportStats = await supabaseToSheets();
-
-  return { import: importStats, export: exportStats };
-}
-
-// ── API Handler ────────────────────────────────────────────
+// POST /api/sheets-sync — รับข้อมูลจาก Google Apps Script
 export async function POST(req: NextRequest) {
   try {
-    const { direction } = await req.json();
+    const body = await req.json();
 
-    if (direction === 'test') {
-      const result = await testConnection();
-      return NextResponse.json(result);
+    // ตรวจ secret key
+    if (body.secret !== SYNC_SECRET) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (direction === 'sheets-to-supabase') {
-      const stats = await sheetsToSupabase();
-      return NextResponse.json({ success: true, direction, stats });
+    const { type, data } = body; // type: 'patient' | 'visit' | 'bulk'
+
+    if (type === 'patient' && data) {
+      const result = await upsertPatient(data);
+      return NextResponse.json({ success: true, result });
     }
 
-    if (direction === 'supabase-to-sheets') {
-      const stats = await supabaseToSheets();
-      return NextResponse.json({ success: true, direction, stats });
+    if (type === 'visit' && data) {
+      const result = await upsertVisit(data);
+      return NextResponse.json({ success: true, result });
     }
 
-    if (direction === 'two-way') {
-      const stats = await twoWaySync();
-      return NextResponse.json({ success: true, direction, stats });
+    if (type === 'bulk' && data) {
+      const stats = { patients: { added: 0, updated: 0 }, visits: { added: 0, updated: 0 } };
+
+      for (const p of data.patients ?? []) {
+        const r = await upsertPatient(p);
+        if (r === 'added') stats.patients.added++;
+        else stats.patients.updated++;
+      }
+
+      for (const v of data.visits ?? []) {
+        const r = await upsertVisit(v);
+        if (r === 'added') stats.visits.added++;
+        else stats.visits.updated++;
+      }
+
+      return NextResponse.json({ success: true, stats });
     }
 
-    return NextResponse.json({ error: 'Invalid direction' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid type — use patient, visit, or bulk' }, { status: 400 });
   } catch (err: any) {
     console.error('Sheets sync error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+// GET /api/sheets-sync — ดึงข้อมูลจาก Supabase (สำหรับ Apps Script ดึงกลับ)
+export async function GET(req: NextRequest) {
+  const secret = req.nextUrl.searchParams.get('secret');
+  if (secret !== SYNC_SECRET) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const type = req.nextUrl.searchParams.get('type') ?? 'all';
+
+  const result: any = {};
+
+  if (type === 'patients' || type === 'all') {
+    const { data } = await supabaseAdmin
+      .from('patients').select('hn, full_name, phone, allergies, disease, source, sales_name, created_at')
+      .eq('clinic_id', CLINIC_ID).order('hn');
+    result.patients = data ?? [];
+  }
+
+  if (type === 'visits' || type === 'all') {
+    const { data } = await supabaseAdmin
+      .from('visits').select('hn, treatment_name, price, doctor, sales_name, customer_type, payment_method, appt_date, appt_time, created_at')
+      .eq('clinic_id', CLINIC_ID).order('created_at', { ascending: false }).limit(500);
+    result.visits = data ?? [];
+  }
+
+  return NextResponse.json(result);
+}
+
+// ── Helpers ────────────────────────────────────────────────
+async function upsertPatient(p: any): Promise<'added' | 'updated'> {
+  const hn = p.hn?.trim();
+  if (!hn) throw new Error('Missing HN');
+
+  const row = {
+    clinic_id: CLINIC_ID,
+    hn,
+    full_name: p.full_name?.trim() || p.name?.trim() || '',
+    phone: p.phone?.trim() || '',
+    allergies: p.allergies?.trim() || null,
+    disease: p.disease?.trim() || null,
+    face_image_url: p.face_image_url || null,
+    source: p.source?.trim() || null,
+    sales_name: p.sales_name?.trim() || null,
+    consent_image_url: p.consent_image_url || null,
+  };
+
+  const { data: existing } = await supabaseAdmin
+    .from('patients').select('id').eq('clinic_id', CLINIC_ID).eq('hn', hn).maybeSingle();
+
+  if (existing) {
+    await supabaseAdmin.from('patients').update(row).eq('id', existing.id);
+    return 'updated';
+  } else {
+    await supabaseAdmin.from('patients').insert(row);
+    return 'added';
+  }
+}
+
+async function upsertVisit(v: any): Promise<'added' | 'updated'> {
+  const hn = v.hn?.trim();
+  if (!hn) throw new Error('Missing HN');
+
+  // หา patient_id
+  const { data: patient } = await supabaseAdmin
+    .from('patients').select('id').eq('clinic_id', CLINIC_ID).eq('hn', hn).maybeSingle();
+
+  const row = {
+    clinic_id: CLINIC_ID,
+    patient_id: patient?.id || null,
+    hn,
+    treatment_name: v.treatment_name?.trim() || v.treatment?.trim() || '',
+    price: parseFloat(String(v.price ?? 0).replace(/,/g, '')) || 0,
+    doctor: v.doctor?.trim() || null,
+    sales_name: v.sales_name?.trim() || null,
+    customer_type: v.customer_type?.trim() || 'returning',
+    payment_method: v.payment_method?.trim() || v.payment?.trim() || 'โอน',
+    appt_date: v.appt_date || null,
+    appt_time: v.appt_time || null,
+  };
+
+  // เช็คซ้ำ: same hn + treatment + price (ป้องกัน duplicate)
+  const { data: existing } = await supabaseAdmin
+    .from('visits').select('id').eq('clinic_id', CLINIC_ID)
+    .eq('hn', hn).eq('treatment_name', row.treatment_name)
+    .eq('price', row.price).limit(1);
+
+  if (existing && existing.length > 0) {
+    await supabaseAdmin.from('visits').update(row).eq('id', existing[0].id);
+    return 'updated';
+  } else {
+    await supabaseAdmin.from('visits').insert(row);
+    return 'added';
   }
 }
