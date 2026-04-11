@@ -76,9 +76,9 @@ function syncVisits() {
 
   for (var i = 1; i < data.length; i++) {
     var row = data[i];
-    if (!row[0]) continue; // skip empty HN
-    visits.push({
-      hn: String(row[0]).trim(),
+    if (!row[0] && !row[2]) continue; // skip if no HN AND no price
+    var visit = {
+      hn: row[0] ? String(row[0]).trim() : "WALK-IN",
       sales_name: String(row[1] || "").trim(),
       price: Number(row[2]) || 0,
       treatment_name: String(row[5] || "").trim(),
@@ -87,7 +87,9 @@ function syncVisits() {
       payment_method: String(row[8] || "โอน").trim(),
       appt_date: row[9] ? String(row[9]).trim() : null,
       appt_time: row[10] ? String(row[10]).trim() : null
-    });
+    };
+    if (row[4]) visit.timestamp = new Date(row[4]).toISOString();
+    visits.push(visit);
   }
 
   var res = UrlFetchApp.fetch(API_URL, {
