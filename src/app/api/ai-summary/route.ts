@@ -51,8 +51,11 @@ ${patientSummary || 'ยังไม่มีข้อมูล'}
 
     const text = await claudeComplete(prompt);
 
-    // Parse JSON from Claude response
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    // Parse JSON from Claude response — sanitize control characters first
+    const sanitized = text.replace(/[\x00-\x1F\x7F]/g, (ch) =>
+      ch === '\n' || ch === '\r' || ch === '\t' ? ch : ' '
+    );
+    const jsonMatch = sanitized.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('Claude ไม่ส่ง JSON กลับมา');
     const parsed = JSON.parse(jsonMatch[0]);
 
