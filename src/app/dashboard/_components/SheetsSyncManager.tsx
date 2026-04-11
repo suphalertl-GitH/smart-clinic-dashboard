@@ -40,7 +40,7 @@ function syncPatients() {
   var headers = data[0];
   var patients = [];
 
-  for (var i = 4442; i < data.length; i++) {
+  for (var i = 1; i < data.length; i++) {
     var row = data[i];
     if (!row[1]) continue; // skip empty HN
     var p = {
