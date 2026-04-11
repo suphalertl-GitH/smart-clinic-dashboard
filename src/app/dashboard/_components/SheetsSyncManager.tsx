@@ -33,16 +33,35 @@ export default function SheetsSyncManager() {
 var API_URL = "${apiUrl}";
 var SECRET = "clinic2026secret";
 
+function sendBatch(items, key) {
+  var BATCH = 50;
+  var total = { added: 0, updated: 0 };
+  for (var b = 0; b < items.length; b += BATCH) {
+    var chunk = items.slice(b, b + BATCH);
+    var payload = { secret: SECRET, type: "bulk", data: {} };
+    payload.data[key] = chunk;
+    var res = UrlFetchApp.fetch(API_URL, {
+      method: "post", contentType: "application/json",
+      payload: JSON.stringify(payload)
+    });
+    var r = JSON.parse(res.getContentText());
+    if (r.stats && r.stats[key]) {
+      total.added += r.stats[key].added || 0;
+      total.updated += r.stats[key].updated || 0;
+    }
+  }
+  return total;
+}
+
 // ส่งข้อมูลคนไข้ทั้งหมด
 function syncPatients() {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("PatientDataGAS");
   var data = sheet.getDataRange().getValues();
-  var headers = data[0];
   var patients = [];
 
   for (var i = 1; i < data.length; i++) {
     var row = data[i];
-    if (!row[1]) continue; // skip empty HN
+    if (!row[1]) continue;
     var p = {
       hn: String(row[1]).trim(),
       full_name: String(row[2]).trim(),
@@ -58,14 +77,8 @@ function syncPatients() {
     patients.push(p);
   }
 
-  var res = UrlFetchApp.fetch(API_URL, {
-    method: "post",
-    contentType: "application/json",
-    payload: JSON.stringify({ secret: SECRET, type: "bulk", data: { patients: patients } })
-  });
-
-  Logger.log("Patients sync: " + res.getContentText());
-  SpreadsheetApp.getUi().alert("Sync patients สำเร็จ!\\n" + res.getContentText());
+  var r = sendBatch(patients, "patients");
+  SpreadsheetApp.getUi().alert("Sync patients สำเร็จ! added:" + r.added + " updated:" + r.updated);
 }
 
 // ส่งข้อมูล Visit ทั้งหมด
@@ -76,7 +89,7 @@ function syncVisits() {
 
   for (var i = 1; i < data.length; i++) {
     var row = data[i];
-    if (!row[0] && !row[2]) continue; // skip if no HN AND no price
+    if (!row[0] && !row[2]) continue;
     var visit = {
       hn: row[0] ? String(row[0]).trim() : "WALK-IN",
       sales_name: String(row[1] || "").trim(),
@@ -92,14 +105,8 @@ function syncVisits() {
     visits.push(visit);
   }
 
-  var res = UrlFetchApp.fetch(API_URL, {
-    method: "post",
-    contentType: "application/json",
-    payload: JSON.stringify({ secret: SECRET, type: "bulk", data: { visits: visits } })
-  });
-
-  Logger.log("Visits sync: " + res.getContentText());
-  SpreadsheetApp.getUi().alert("Sync visits สำเร็จ!\\n" + res.getContentText());
+  var r = sendBatch(visits, "visits");
+  SpreadsheetApp.getUi().alert("Sync visits สำเร็จ! added:" + r.added + " updated:" + r.updated);
 }
 
 // ส่งทั้ง patients + visits
