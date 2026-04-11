@@ -44,7 +44,6 @@ export async function middleware(request: NextRequest) {
   return response;
 }
 
-// Auth disabled for now — re-enable when ready
 export const config = {
-  matcher: [],
+  matcher: ['/dashboard/:path*', '/login'],
 };
