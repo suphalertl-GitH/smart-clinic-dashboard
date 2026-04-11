@@ -16,7 +16,7 @@ const GOLD      = '#D97706';
 type Props = { data: any };
 
 export default function SalesAnalytics({ data }: Props) {
-  const { revenueTrendMonthly, revenueShareByCategory, topDoctors, topServices, salesRanking } = data;
+  const { revenueTrendMonthly = [], revenueShareByCategory, topDoctors, topServices, salesRanking } = data;
   const [targets, setTargets] = useState<Record<string, number>>({});
 
   useEffect(() => {
