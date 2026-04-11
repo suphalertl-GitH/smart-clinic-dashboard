@@ -43,7 +43,7 @@ function syncPatients() {
   for (var i = 1; i < data.length; i++) {
     var row = data[i];
     if (!row[1]) continue; // skip empty HN
-    patients.push({
+    var p = {
       hn: String(row[1]).trim(),
       full_name: String(row[2]).trim(),
       phone: String(row[3]).trim(),
@@ -53,7 +53,9 @@ function syncPatients() {
       source: String(row[7] || "").trim(),
       sales_name: String(row[8] || "").trim(),
       consent_image_url: String(row[9] || "")
-    });
+    };
+    if (row[0]) p.timestamp = new Date(row[0]).toISOString();
+    patients.push(p);
   }
 
   var res = UrlFetchApp.fetch(API_URL, {

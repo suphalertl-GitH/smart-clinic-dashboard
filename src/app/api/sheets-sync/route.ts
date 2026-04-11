@@ -90,7 +90,15 @@ async function upsertPatient(p: any): Promise<'added' | 'updated'> {
   const hn = p.hn?.trim();
   if (!hn) throw new Error('Missing HN');
 
-  const row = {
+  // Parse timestamp from Sheet if provided
+  let created_at: string | undefined;
+  if (p.timestamp || p.created_at) {
+    const raw = p.timestamp || p.created_at;
+    const d = new Date(raw);
+    if (!isNaN(d.getTime())) created_at = d.toISOString();
+  }
+
+  const row: any = {
     clinic_id: CLINIC_ID,
     hn,
     full_name: p.full_name?.trim() || p.name?.trim() || '',
@@ -102,6 +110,7 @@ async function upsertPatient(p: any): Promise<'added' | 'updated'> {
     sales_name: p.sales_name?.trim() || null,
     consent_image_url: p.consent_image_url || null,
   };
+  if (created_at) row.created_at = created_at;
 
   const { data: existing } = await supabaseAdmin
     .from('patients').select('id').eq('clinic_id', CLINIC_ID).eq('hn', hn).maybeSingle();
