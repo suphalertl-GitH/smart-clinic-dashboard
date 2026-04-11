@@ -29,17 +29,40 @@ export async function POST(req: NextRequest) {
     if (type === 'bulk' && data) {
       const stats = { patients: { added: 0, updated: 0 }, visits: { added: 0, updated: 0 }, appointments: { added: 0, skipped: 0 } };
 
-      for (const p of data.patients ?? []) {
-        const r = await upsertPatient(p);
-        if (r === 'added') stats.patients.added++;
-        else stats.patients.updated++;
+      // Batch upsert patients
+      const rawPatients = data.patients ?? [];
+      if (rawPatients.length > 0) {
+        const rows = rawPatients.filter((p: any) => p.hn?.trim()).map((p: any) => {
+          let created_at: string | undefined;
+          if (p.timestamp || p.created_at) {
+            const d = new Date(p.timestamp || p.created_at);
+            if (!isNaN(d.getTime())) created_at = d.toISOString();
+          }
+          const row: any = {
+            clinic_id: CLINIC_ID,
+            hn: p.hn.trim(),
+            full_name: p.full_name?.trim() || p.name?.trim() || '',
+            phone: p.phone?.trim() || '',
+            allergies: p.allergies?.trim() || null,
+            disease: p.disease?.trim() || null,
+            face_image_url: p.face_image_url || null,
+            source: p.source?.trim() || null,
+            sales_name: p.sales_name?.trim() || null,
+            consent_image_url: p.consent_image_url || null,
+          };
+          if (created_at) row.created_at = created_at;
+          return row;
+        });
+        const { error } = await supabaseAdmin.from('patients').upsert(rows, { onConflict: 'clinic_id,hn' });
+        if (error) console.error('Batch patient upsert error:', error.message);
+        stats.patients.updated = rows.length;
       }
 
+      // Visits still one-by-one (dedup logic needed)
       for (const v of data.visits ?? []) {
         const r = await upsertVisit(v);
         if (r === 'added') stats.visits.added++;
         else if (r === 'updated') stats.visits.updated++;
-        // สร้าง appointment ถ้ามีวันนัด
         if (v.appt_date) {
           const ar = await upsertAppointment(v);
           if (ar === 'added') stats.appointments.added++;
