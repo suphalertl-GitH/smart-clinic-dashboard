@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { getClinicId } from '@/lib/auth';
+
+const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
 
 function getCategory(t?: string): string {
   if (!t) return 'Other';
@@ -30,8 +31,7 @@ function getThaiNow() {
 
 // GET /api/dashboard?startDate=2024-01-01&endDate=2024-12-31
 export async function GET(req: NextRequest) {
-  const clinic_id = await getClinicId();
-  if (!clinic_id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const clinic_id = CLINIC_ID;
 
   const startDate = req.nextUrl.searchParams.get('startDate');
   const endDate = req.nextUrl.searchParams.get('endDate');
