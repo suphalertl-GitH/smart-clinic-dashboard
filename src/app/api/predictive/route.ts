@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
 
     // ── Fetch raw data (visits + appointments only, no patients query) ──
     const [{ data: visits }, { data: appointments }, { data: settings }] = await Promise.all([
-      supabaseAdmin.from('visits').select('hn, name, price, treatment_name, created_at').eq('clinic_id', CLINIC_ID).limit(5000),
+      supabaseAdmin.from('visits').select('hn, price, treatment_name, created_at').eq('clinic_id', CLINIC_ID).limit(5000),
       supabaseAdmin.from('appointments').select('hn, name').eq('clinic_id', CLINIC_ID).limit(2000),
       supabaseAdmin.from('settings').select('treatment_cycles').eq('clinic_id', CLINIC_ID).single(),
     ]);
