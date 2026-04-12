@@ -2,6 +2,8 @@ import { notFound } from 'next/navigation';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import ClinicLoginClient from './_client';
 
+export const dynamic = 'force-dynamic';
+
 export default async function ClinicSlugPage({
   params,
 }: {
