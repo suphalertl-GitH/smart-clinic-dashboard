@@ -75,11 +75,14 @@ export default function PredictiveDashboard() {
   async function load(force = false) {
     setLoading(true); setError(null);
     try {
-      const res = await fetch(`/api/predictive${force ? '?force=1' : ''}`);
-      if (!res.ok) throw new Error(`${res.status}`);
-      setData(await res.json());
+      const res = await fetch(`/api/predictive${force ? '?force=1' : ''}`, {
+        signal: AbortSignal.timeout(25000),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      setData(json);
     } catch (e: any) {
-      setError(e.message ?? 'ไม่สามารถโหลดข้อมูลได้');
+      setError(e.name === 'TimeoutError' ? 'วิเคราะห์ใช้เวลานานเกินไป กรุณากด รีเฟรช' : (e.message ?? 'ไม่สามารถโหลดข้อมูลได้'));
     } finally {
       setLoading(false);
     }

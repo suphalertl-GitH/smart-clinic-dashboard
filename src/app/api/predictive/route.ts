@@ -46,8 +46,9 @@ export async function GET(req: NextRequest) {
 
     // ── Fetch raw data ──────────────────────────────────────
     const [{ data: visits }, { data: patients }, { data: settings }] = await Promise.all([
-      supabaseAdmin.from('visits').select('hn, price, treatment_name, created_at').eq('clinic_id', CLINIC_ID).limit(10000),
-      supabaseAdmin.from('patients').select('hn, full_name, line_user_id, loyalty_tier, lifetime_spending').eq('clinic_id', CLINIC_ID),
+      supabaseAdmin.from('visits').select('hn, price, treatment_name, created_at').eq('clinic_id', CLINIC_ID).limit(5000),
+      // จำกัด patients เฉพาะที่มีข้อมูล loyalty (คนไข้ที่ active จริงๆ)
+      supabaseAdmin.from('patients').select('hn, full_name, line_user_id, loyalty_tier, lifetime_spending').eq('clinic_id', CLINIC_ID).limit(1000),
       supabaseAdmin.from('settings').select('treatment_cycles').eq('clinic_id', CLINIC_ID).single(),
     ]);
 
@@ -209,7 +210,7 @@ export async function GET(req: NextRequest) {
     const retainedCount = [...uniqueThisMonth].filter(hn => prevMonthVisitors.has(hn)).length;
     const retentionRate = prevMonthVisitors.size > 0 ? Math.round((retainedCount / prevMonthVisitors.size) * 100) : 0;
 
-    // ── AI Narrative (Groq) ──────────────────────────────────
+    // ── AI Narrative (Groq) — รัน parallel แต่ไม่บล็อก response หลัก ──
     let aiNarrative: { summary: string; opportunities: string[]; risks: string[]; actions: string[] } | null = null;
 
     const prompt = `ข้อมูลคลินิกความงาม:
@@ -221,19 +222,19 @@ export async function GET(req: NextRequest) {
 - Retention rate: ${retentionRate}%
 - จำนวนคนไข้ทั้งหมด: ${(patients ?? []).length} คน
 
-วิเคราะห์และให้คำแนะนำเชิงธุรกิจ ตอบเป็น JSON เท่านั้น:
-{
-  "summary": "สรุปสถานการณ์โดยรวม 2-3 ประโยค",
-  "opportunities": ["โอกาส 1", "โอกาส 2", "โอกาส 3"],
-  "risks": ["ความเสี่ยง 1", "ความเสี่ยง 2"],
-  "actions": ["action ที่แนะนำ 1", "action 2", "action 3"]
-}`;
+ตอบ JSON เท่านั้น:
+{"summary":"สรุป 2 ประโยค","opportunities":["o1","o2","o3"],"risks":["r1","r2"],"actions":["a1","a2","a3"]}`;
 
     try {
-      const raw = await claudeComplete(prompt, 'คุณคือที่ปรึกษาคลินิกความงาม ตอบ JSON เท่านั้น ห้ามมีข้อความนอก JSON');
+      // timeout 7 วิ เพื่อไม่ให้เกิน Vercel 10s limit
+      const aiPromise = claudeComplete(prompt, 'คุณคือที่ปรึกษาคลินิก ตอบ JSON เท่านั้น');
+      const timeoutPromise = new Promise<null>((_, reject) =>
+        setTimeout(() => reject(new Error('AI timeout')), 7000)
+      );
+      const raw = await Promise.race([aiPromise, timeoutPromise]) as string;
       const match = raw.match(/\{[\s\S]+\}/);
       if (match) aiNarrative = JSON.parse(match[0]);
-    } catch { /* ใช้ null ถ้า AI ล้มเหลว */ }
+    } catch { /* ใช้ null ถ้า AI ล้มเหลว หรือ timeout */ }
 
     return NextResponse.json({
       revenueForecast,

@@ -45,8 +45,15 @@ export default function ExecutiveSummary() {
   const [error, setError]   = useState<string | null>(null);
   const fetched = useRef(false);
 
+  function lsGet(key: string) {
+    try { return localStorage.getItem(key); } catch { return null; }
+  }
+  function lsSet(key: string, val: string) {
+    try { localStorage.setItem(key, val); } catch { /* ignore */ }
+  }
+
   function shouldRefetch() {
-    const lastStr = localStorage.getItem('ai_summary_time');
+    const lastStr = lsGet('ai_summary_time');
     if (!lastStr) return true;
     const today7am = new Date(); today7am.setHours(7, 0, 0, 0);
     if (new Date() < today7am) today7am.setDate(today7am.getDate() - 1);
@@ -58,16 +65,17 @@ export default function ExecutiveSummary() {
     setLoading(true); setError(null);
     try {
       if (!force && !shouldRefetch()) {
-        const cached = localStorage.getItem('ai_summary_data');
+        const cached = lsGet('ai_summary_data');
         if (cached) { setAiData(JSON.parse(cached)); setLoading(false); return; }
       }
-      const res  = await fetch('/api/ai-summary', { method: 'POST' });
+      const res  = await fetch('/api/ai-summary', { method: 'POST', signal: AbortSignal.timeout(25000) });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
       setAiData(data);
-      localStorage.setItem('ai_summary_data', JSON.stringify(data));
-      localStorage.setItem('ai_summary_time', Date.now().toString());
-    } catch {
-      setError('ไม่สามารถวิเคราะห์ข้อมูลได้');
+      lsSet('ai_summary_data', JSON.stringify(data));
+      lsSet('ai_summary_time', Date.now().toString());
+    } catch (e: any) {
+      setError(e.name === 'TimeoutError' ? 'AI ใช้เวลานานเกินไป กรุณาลองใหม่' : 'ไม่สามารถวิเคราะห์ข้อมูลได้');
     } finally {
       setLoading(false);
     }
