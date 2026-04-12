@@ -47,6 +47,7 @@ export interface Clinic {
   name: string;
   phone: string;
   address: string;
+  slug: string | null;
   line_channel_access_token: string | null;
   line_channel_secret: string | null;
   liff_id: string | null;

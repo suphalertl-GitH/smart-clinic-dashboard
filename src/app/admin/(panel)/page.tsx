@@ -302,7 +302,7 @@ function ManageUsersModal({ clinic, onClose }: { clinic: ClinicWithStats; onClos
 // ── Onboard Modal ──────────────────────────────────────────────
 function OnboardModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [form, setForm] = useState({
-    name: '', phone: '', address: '',
+    name: '', slug: '', phone: '', address: '',
     owner_email: '', owner_password: '', tier: 'starter',
   });
   const [loading, setLoading] = useState(false);
@@ -362,6 +362,31 @@ function OnboardModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
               />
             </div>
           ))}
+
+          {/* Slug */}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              Slug (URL สำหรับลูกค้า)
+            </label>
+            <div className="flex items-center gap-0">
+              <span className="px-3 py-2 text-xs text-gray-400 bg-gray-50 border border-r-0 border-gray-200 rounded-l-xl whitespace-nowrap">/</span>
+              <input
+                type="text"
+                required
+                placeholder="ploysaiclinic"
+                value={form.slug}
+                onChange={e => setForm(f => ({ ...f, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') }))}
+                className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-r-xl focus:outline-none focus:ring-2 focus:ring-[#0f4c5c]/20 focus:border-[#0f4c5c]"
+              />
+            </div>
+            {form.slug && (
+              <p className="text-xs text-gray-400 mt-1">
+                URL: <span className="text-[#0f4c5c] font-medium">
+                  {typeof window !== 'undefined' ? window.location.origin : 'https://smart-clinic-cyan.vercel.app'}/{form.slug}
+                </span>
+              </p>
+            )}
+          </div>
 
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Subscription Tier</label>
@@ -815,6 +840,9 @@ function ClinicsTab({
                   <td className="px-5 py-3.5">
                     <p className="font-medium text-gray-900">{c.name}</p>
                     <p className="text-xs text-gray-400">{c.owner_email ?? '-'}</p>
+                    {c.slug && (
+                      <p className="text-xs text-[#0f4c5c]/70 mt-0.5">/{c.slug}</p>
+                    )}
                   </td>
                   <td className="px-4 py-3.5">
                     <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${TIER_COLOR[c.tier]}`}>

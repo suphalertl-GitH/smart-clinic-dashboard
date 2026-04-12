@@ -1,9 +1,5 @@
-import { redirect } from 'next/navigation';
-import { getSessionUser } from '@/lib/auth';
-
-export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const user = await getSessionUser();
-  if (!user) redirect('/login');
-  if (user.user_metadata?.role !== 'super_admin') redirect('/dashboard');
+// Root layout for /admin — no auth check here.
+// Auth guard is in /admin/(panel)/layout.tsx (applies to /admin only, not /admin/login)
+export default function AdminRootLayout({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }

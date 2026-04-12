@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { name, phone, address, owner_email, owner_password, tier } = body;
+  const { name, phone, address, slug, owner_email, owner_password, tier } = body;
 
   if (!name || !phone || !address || !owner_email || !owner_password || !tier) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -59,6 +59,7 @@ export async function POST(req: NextRequest) {
       name,
       phone,
       address,
+      slug: slug || null,
       tier,
       owner_email,
       is_active: true,
