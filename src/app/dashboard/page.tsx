@@ -35,13 +35,13 @@ type Tier = 'starter' | 'professional' | 'enterprise';
 
 const NAV: { id: NavId; label: string; icon: React.FC<any>; badge?: string; minTier?: Tier }[] = [
   { id: 'overview',   label: 'แดชบอร์ด',          icon: LayoutDashboard },
-  { id: 'sales',      label: 'Sales Analytics',   icon: BarChart2,  minTier: 'professional' },
+  { id: 'sales',      label: 'Sales Analytics',   icon: BarChart2 },
   { id: 'customers',  label: 'Customer Insights', icon: Users,      minTier: 'professional' },
   { id: 'crm',        label: 'CRM & Campaigns',   icon: Megaphone,  minTier: 'professional' },
   { id: 'promotions', label: 'Promotions',         icon: Tag,        minTier: 'professional' },
   { id: 'predictive', label: 'Predictive AI',      icon: Brain,      minTier: 'enterprise', badge: 'AI' },
   { id: 'sheets',     label: 'Google Sheets',      icon: Sheet,      minTier: 'professional' },
-  { id: 'settings',   label: 'Settings',           icon: Settings,   minTier: 'professional' },
+  { id: 'settings',   label: 'Settings',           icon: Settings },
 ];
 
 const TIER_RANK: Record<Tier, number> = { starter: 0, professional: 1, enterprise: 2 };
