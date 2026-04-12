@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Building2, Users, TrendingUp, ShieldCheck, LogOut,
   Plus, X, ChevronDown, RefreshCw, CheckCircle, XCircle,
-  HeartPulse, BarChart3, Layers,
+  HeartPulse, BarChart3, Layers, Copy, Eye, EyeOff, UserPlus, Mail, Key,
 } from 'lucide-react';
 import { createBrowserClient } from '@supabase/ssr';
 import { useRouter } from 'next/navigation';
@@ -77,6 +77,228 @@ function StatCard({ label, value, sub, icon: Icon, color }: {
   );
 }
 
+// ── Credentials Card (shown after user creation) ──────────────
+function CredentialsCard({ email, password, onClose }: {
+  email: string; password: string; onClose: () => void;
+}) {
+  const [showPwd, setShowPwd] = useState(false);
+  const [copied, setCopied] = useState('');
+
+  function copy(text: string, label: string) {
+    navigator.clipboard.writeText(text);
+    setCopied(label);
+    setTimeout(() => setCopied(''), 2000);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
+        <div className="px-6 pt-6 pb-4 text-center">
+          <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-3">
+            <CheckCircle className="w-7 h-7 text-emerald-600" />
+          </div>
+          <h2 className="font-bold text-gray-900 text-lg mb-1">สร้างสำเร็จ!</h2>
+          <p className="text-sm text-gray-500">แชร์ข้อมูล Login นี้ให้ลูกค้า</p>
+        </div>
+
+        <div className="px-6 pb-6 space-y-3">
+          {/* Email */}
+          <div className="bg-gray-50 rounded-xl p-3.5 border border-gray-100">
+            <p className="text-xs text-gray-400 mb-1 flex items-center gap-1.5">
+              <Mail className="w-3.5 h-3.5" /> อีเมล
+            </p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-medium text-gray-800 truncate">{email}</p>
+              <button onClick={() => copy(email, 'email')}
+                className="shrink-0 text-gray-400 hover:text-[#0f4c5c] transition">
+                {copied === 'email'
+                  ? <CheckCircle className="w-4 h-4 text-emerald-500" />
+                  : <Copy className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+
+          {/* Password */}
+          <div className="bg-gray-50 rounded-xl p-3.5 border border-gray-100">
+            <p className="text-xs text-gray-400 mb-1 flex items-center gap-1.5">
+              <Key className="w-3.5 h-3.5" /> รหัสผ่าน
+            </p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-medium text-gray-800 font-mono tracking-wider">
+                {showPwd ? password : '••••••••'}
+              </p>
+              <div className="flex items-center gap-1 shrink-0">
+                <button onClick={() => setShowPwd(v => !v)}
+                  className="text-gray-400 hover:text-gray-600 transition">
+                  {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+                <button onClick={() => copy(password, 'pwd')}
+                  className="text-gray-400 hover:text-[#0f4c5c] transition">
+                  {copied === 'pwd'
+                    ? <CheckCircle className="w-4 h-4 text-emerald-500" />
+                    : <Copy className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Copy both */}
+          <button
+            onClick={() => copy(`อีเมล: ${email}\nรหัสผ่าน: ${password}\nURL: ${process.env.NEXT_PUBLIC_APP_URL ?? 'https://smart-clinic-cyan.vercel.app'}`, 'all')}
+            className="w-full py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition flex items-center justify-center gap-2"
+          >
+            {copied === 'all' ? <><CheckCircle className="w-4 h-4 text-emerald-500" /> คัดลอกแล้ว!</> : <><Copy className="w-4 h-4" /> คัดลอกทั้งหมด</>}
+          </button>
+
+          <button onClick={onClose}
+            className="w-full py-2.5 rounded-xl bg-[#0f4c5c] text-white text-sm font-semibold hover:bg-[#0d3f4d] transition">
+            ปิด
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Manage Users Modal ─────────────────────────────────────────
+function ManageUsersModal({ clinic, onClose }: { clinic: ClinicWithStats; onClose: () => void }) {
+  const [users, setUsers] = useState<{ id: string; email: string; created_at: string }[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(true);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [showPwd, setShowPwd] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [credentials, setCredentials] = useState<{ email: string; password: string } | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/admin/clinics/${clinic.id}/users`)
+      .then(r => r.json())
+      .then(d => { setUsers(d.users ?? []); setLoadingUsers(false); });
+  }, [clinic.id]);
+
+  async function handleAddUser(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+    const res = await fetch(`/api/admin/clinics/${clinic.id}/users`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: newEmail, password: newPassword }),
+    });
+    const json = await res.json();
+    setSaving(false);
+    if (!res.ok) { setError(json.error ?? 'เกิดข้อผิดพลาด'); return; }
+    setCredentials({ email: newEmail, password: newPassword });
+    setShowAddForm(false);
+    setNewEmail(''); setNewPassword('');
+    // Reload users
+    fetch(`/api/admin/clinics/${clinic.id}/users`)
+      .then(r => r.json())
+      .then(d => setUsers(d.users ?? []));
+  }
+
+  return (
+    <>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] flex flex-col">
+          <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100 shrink-0">
+            <div>
+              <h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
+                <Users className="w-4 h-4" /> จัดการ Users
+              </h2>
+              <p className="text-xs text-gray-500 mt-0.5">{clinic.name}</p>
+            </div>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="p-6 space-y-4 overflow-y-auto flex-1">
+            {/* Users list */}
+            {loadingUsers ? (
+              <div className="flex items-center justify-center py-6 text-gray-400 text-sm gap-2">
+                <RefreshCw className="w-4 h-4 animate-spin" /> โหลด...
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {users.map(u => (
+                  <div key={u.id} className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 bg-gray-50">
+                    <div className="w-8 h-8 rounded-full bg-[#0f4c5c]/10 flex items-center justify-center text-xs font-bold text-[#0f4c5c] shrink-0">
+                      {(u.email?.[0] ?? '?').toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">{u.email}</p>
+                      <p className="text-xs text-gray-400">
+                        สร้าง {new Date(u.created_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}
+                      </p>
+                    </div>
+                    <span className="text-xs bg-[#0f4c5c]/10 text-[#0f4c5c] px-2 py-0.5 rounded-full font-medium">Admin</span>
+                  </div>
+                ))}
+                {users.length === 0 && (
+                  <p className="text-sm text-gray-400 text-center py-4">ยังไม่มี users</p>
+                )}
+              </div>
+            )}
+
+            {/* Add user form */}
+            {showAddForm ? (
+              <form onSubmit={handleAddUser} className="border border-dashed border-gray-200 rounded-xl p-4 space-y-3">
+                <p className="text-xs font-semibold text-gray-600">เพิ่ม User ใหม่</p>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">อีเมล</label>
+                  <input type="email" required value={newEmail} onChange={e => setNewEmail(e.target.value)}
+                    placeholder="staff@clinic.com"
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0f4c5c]/20 focus:border-[#0f4c5c]" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">รหัสผ่าน</label>
+                  <div className="relative">
+                    <input type={showPwd ? 'text' : 'password'} required minLength={8}
+                      value={newPassword} onChange={e => setNewPassword(e.target.value)}
+                      placeholder="อย่างน้อย 8 ตัวอักษร"
+                      className="w-full px-3 py-2 pr-9 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0f4c5c]/20 focus:border-[#0f4c5c]" />
+                    <button type="button" onClick={() => setShowPwd(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                      {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+                {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => { setShowAddForm(false); setError(''); }}
+                    className="flex-1 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition">
+                    ยกเลิก
+                  </button>
+                  <button type="submit" disabled={saving}
+                    className="flex-1 py-2 rounded-xl bg-[#0f4c5c] text-white text-sm font-medium disabled:opacity-60 transition">
+                    {saving ? 'กำลังสร้าง...' : 'สร้าง User'}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <button onClick={() => setShowAddForm(true)}
+                className="w-full py-2.5 rounded-xl border border-dashed border-gray-300 text-sm text-gray-500 hover:border-[#0f4c5c] hover:text-[#0f4c5c] transition flex items-center justify-center gap-2">
+                <UserPlus className="w-4 h-4" /> เพิ่ม User ใหม่
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {credentials && (
+        <CredentialsCard
+          email={credentials.email}
+          password={credentials.password}
+          onClose={() => setCredentials(null)}
+        />
+      )}
+    </>
+  );
+}
+
 // ── Onboard Modal ──────────────────────────────────────────────
 function OnboardModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [form, setForm] = useState({
@@ -85,6 +307,7 @@ function OnboardModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [credentials, setCredentials] = useState<{ email: string; password: string } | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -98,7 +321,11 @@ function OnboardModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
     const json = await res.json();
     if (!res.ok) { setError(json.error ?? 'เกิดข้อผิดพลาด'); setLoading(false); return; }
     onCreated();
-    onClose();
+    setCredentials({ email: form.owner_email, password: form.owner_password });
+  }
+
+  if (credentials) {
+    return <CredentialsCard email={credentials.email} password={credentials.password} onClose={onClose} />;
   }
 
   const field = (key: keyof typeof form) => ({
@@ -320,6 +547,7 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'clinics'>('overview');
   const [showOnboard, setShowOnboard] = useState(false);
   const [editClinic, setEditClinic] = useState<ClinicWithStats | null>(null);
+  const [manageUsers, setManageUsers] = useState<ClinicWithStats | null>(null);
   const [search, setSearch] = useState('');
   const [unauthorized, setUnauthorized] = useState(false);
 
@@ -436,6 +664,7 @@ export default function AdminPage() {
             onSearch={setSearch}
             onAdd={() => setShowOnboard(true)}
             onEdit={setEditClinic}
+            onManageUsers={setManageUsers}
           />
         )}
       </main>
@@ -451,6 +680,12 @@ export default function AdminPage() {
           clinic={editClinic}
           onClose={() => setEditClinic(null)}
           onSaved={load}
+        />
+      )}
+      {manageUsers && (
+        <ManageUsersModal
+          clinic={manageUsers}
+          onClose={() => setManageUsers(null)}
         />
       )}
     </div>
@@ -531,13 +766,14 @@ function OverviewTab({ stats, clinics }: { stats: PlatformStats | null; clinics:
 
 // ── Clinics Tab ────────────────────────────────────────────────
 function ClinicsTab({
-  clinics, search, onSearch, onAdd, onEdit,
+  clinics, search, onSearch, onAdd, onEdit, onManageUsers,
 }: {
   clinics: ClinicWithStats[];
   search: string;
   onSearch: (v: string) => void;
   onAdd: () => void;
   onEdit: (c: ClinicWithStats) => void;
+  onManageUsers: (c: ClinicWithStats) => void;
 }) {
   return (
     <div className="space-y-4">
@@ -605,12 +841,20 @@ function ClinicsTab({
                     }
                   </td>
                   <td className="px-4 py-3.5 text-right">
-                    <button
-                      onClick={() => onEdit(c)}
-                      className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition"
-                    >
-                      แก้ไข
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => onManageUsers(c)}
+                        className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition flex items-center gap-1.5"
+                      >
+                        <Users className="w-3.5 h-3.5" /> Users
+                      </button>
+                      <button
+                        onClick={() => onEdit(c)}
+                        className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition"
+                      >
+                        แก้ไข
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
