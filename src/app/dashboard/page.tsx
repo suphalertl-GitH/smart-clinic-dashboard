@@ -34,16 +34,16 @@ const THEMES: Record<ThemeKey, { bg: string; bgDark: string; accent: string; gra
 // ── Nav items ─────────────────────────────────────────────────
 type NavId = 'overview' | 'sales' | 'customers' | 'crm' | 'promotions' | 'predictive' | 'sheets' | 'settings' | 'clinicops';
 
-const NAV: { id: NavId; label: string; icon: React.FC<any>; badge?: string; featureKey?: string }[] = [
+const NAV: { id: NavId; label: string; icon: React.FC<any>; badge?: string; featureKey?: string; divider?: boolean }[] = [
   { id: 'overview',   label: 'แดชบอร์ด',          icon: LayoutDashboard },
   { id: 'sales',      label: 'Sales Analytics',   icon: BarChart2 },
   { id: 'customers',  label: 'Customer Insights', icon: Users,      featureKey: 'customer_insights' },
   { id: 'crm',        label: 'CRM & Campaigns',   icon: Megaphone,  featureKey: 'crm' },
   { id: 'promotions', label: 'Promotions',         icon: Tag,        featureKey: 'promotions' },
   { id: 'predictive', label: 'Predictive AI',      icon: Brain,      featureKey: 'predictive', badge: 'AI' },
+  { id: 'clinicops',  label: 'Clinic Ops',         icon: Activity,   featureKey: 'clinic_ops',  divider: true },
   { id: 'sheets',     label: 'Google Sheets',      icon: Sheet,      featureKey: 'google_sheets' },
-  { id: 'clinicops',  label: 'Clinic Ops',          icon: Activity,   featureKey: 'clinic_ops' },
-  { id: 'settings',   label: 'Settings',           icon: Settings },
+  { id: 'settings',   label: 'Settings',           icon: Settings,   divider: true },
 ];
 const DISABLED_NAV: { label: string; icon: React.FC<any> }[] = [];
 
@@ -99,13 +99,14 @@ function SidebarContent({
 
       {/* Nav */}
       <nav className="flex-1 py-4 px-3 space-y-1 overflow-auto">
-        {NAV.map(({ id, label, icon: Icon, badge, featureKey }) => {
+        {NAV.map(({ id, label, icon: Icon, badge, featureKey, divider }) => {
           const active = activeNav === id;
           const locked = !!featureKey && !enabledFeatures.includes(featureKey);
           if (locked) return null; // ซ่อน item ที่ tier ไม่รองรับ
           return (
-            <button
-              key={id}
+            <div key={id}>
+              {divider && <div className="my-2 border-t border-white/10" />}
+              <button
               onClick={() => { setActiveNav(id); onNavClick?.(); }}
               className={`sidebar-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-left transition-all ${
                 active ? 'bg-white/15 text-white' : 'text-white/60 hover:text-white hover:bg-white/8'
@@ -120,6 +121,7 @@ function SidebarContent({
               )}
               {active && <ChevronRight size={14} className="text-white/40" />}
             </button>
+            </div>
           );
         })}
 
