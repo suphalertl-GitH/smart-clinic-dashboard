@@ -26,7 +26,7 @@ export default function ClinicLoginClient({ clinic }: { clinic: Clinic }) {
     supabase.auth.getSession().then(({ data }) => {
       if (!data.session) return;
       const role = data.session.user.user_metadata?.role;
-      router.replace(role === 'super_admin' ? '/admin' : '/dashboard');
+      if (role !== 'super_admin') router.replace('/dashboard');
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -44,8 +44,14 @@ export default function ClinicLoginClient({ clinic }: { clinic: Clinic }) {
       return;
     }
 
-    const role = data.user?.user_metadata?.role;
-    router.push(role === 'super_admin' ? '/admin' : '/dashboard');
+    if (data.user?.user_metadata?.role === 'super_admin') {
+      await supabase.auth.signOut();
+      setError('กรุณาเข้าสู่ระบบผ่านหน้า Admin');
+      setLoading(false);
+      return;
+    }
+
+    router.push('/dashboard');
     router.refresh();
   }
 
