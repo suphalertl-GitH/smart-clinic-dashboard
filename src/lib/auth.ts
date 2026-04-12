@@ -47,3 +47,10 @@ export async function getSessionUser() {
   const { data: { user } } = await supabase.auth.getUser();
   return user;
 }
+
+/** ตรวจสอบว่า user ปัจจุบันเป็น Super Admin หรือไม่ */
+export async function isSuperAdmin(): Promise<boolean> {
+  const user = await getSessionUser();
+  if (!user) return false;
+  return user.user_metadata?.role === 'super_admin';
+}

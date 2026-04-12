@@ -51,7 +51,16 @@ export interface Clinic {
   line_channel_secret: string | null;
   liff_id: string | null;
   tier: 'starter' | 'professional' | 'enterprise';
+  is_active: boolean;
+  owner_email: string | null;
+  subscription_expires_at: string | null;
   created_at: string;
+}
+
+export interface ClinicWithStats extends Clinic {
+  patient_count: number;
+  visit_count: number;
+  total_revenue: number;
 }
 
 export interface Patient {
