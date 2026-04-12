@@ -249,6 +249,16 @@ async function syncAppointments(visRows: Record<string, string>[], filterToday?:
 
 // ─── Route ────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
+  // ตรวจสิทธิ์ — ต้องมี session login หรือส่ง CRON_SECRET header
+  const authHeader = req.headers.get('authorization');
+  const CRON_SECRET = process.env.CRON_SECRET ?? 'clinic2026secret';
+  const hasCronAuth = authHeader === `Bearer ${CRON_SECRET}`;
+  if (!hasCronAuth) {
+    const { getSessionUser } = await import('@/lib/auth');
+    if (!(await getSessionUser())) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+  }
   try {
     const body = await req.json().catch(() => ({}));
     const mode = body.mode ?? 'full';   // 'today' | 'full'
