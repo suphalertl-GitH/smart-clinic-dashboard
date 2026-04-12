@@ -35,14 +35,14 @@ const THEMES: Record<ThemeKey, { bg: string; bgDark: string; accent: string; gra
 type NavId = 'overview' | 'sales' | 'customers' | 'crm' | 'promotions' | 'predictive' | 'sheets' | 'settings' | 'clinicops';
 
 const NAV: { id: NavId; label: string; icon: React.FC<any>; badge?: string; featureKey?: string; divider?: boolean }[] = [
-  { id: 'overview',   label: 'แดชบอร์ด',          icon: LayoutDashboard },
+  { id: 'overview',   label: 'Executive Summary',  icon: LayoutDashboard },
   { id: 'sales',      label: 'Sales Analytics',   icon: BarChart2 },
   { id: 'customers',  label: 'Customer Insights', icon: Users,      featureKey: 'customer_insights' },
   { id: 'crm',        label: 'CRM & Campaigns',   icon: Megaphone,  featureKey: 'crm' },
   { id: 'promotions', label: 'Promotions',         icon: Tag,        featureKey: 'promotions' },
   { id: 'predictive', label: 'Predictive AI',      icon: Brain,      featureKey: 'predictive', badge: 'AI' },
-  { id: 'clinicops',  label: 'Clinic Ops',         icon: Activity,   featureKey: 'clinic_ops',  divider: true },
-  { id: 'sheets',     label: 'Google Sheets',      icon: Sheet,      featureKey: 'google_sheets' },
+  { id: 'clinicops',  label: 'Clinic Ops',         icon: Activity,   featureKey: 'clinic_ops' },
+  { id: 'sheets',     label: 'Connect Google Sheets', icon: Sheet,   featureKey: 'google_sheets' },
   { id: 'settings',   label: 'Settings',           icon: Settings,   divider: true },
 ];
 const DISABLED_NAV: { label: string; icon: React.FC<any> }[] = [];
@@ -57,13 +57,13 @@ const BOTTOM_NAV: { id: NavId; label: string; icon: React.FC<any> }[] = [
 ];
 
 const PAGE_TITLE: Record<NavId, string> = {
-  overview:   'แดชบอร์ด',
+  overview:   'Executive Summary',
   sales:      'Sales Analytics',
   customers:  'Customer Insights',
   crm:        'CRM & Campaigns',
   promotions: 'Promotions',
   predictive: 'Predictive AI',
-  sheets:     'Google Sheets Sync',
+  sheets:     'Connect Google Sheets',
   clinicops:  'Clinic Ops',
   settings:   'Settings',
 };
