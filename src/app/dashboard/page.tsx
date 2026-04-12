@@ -5,7 +5,7 @@ import { createBrowserClient } from '@supabase/ssr';
 import {
   Activity, RefreshCw, LayoutDashboard, BarChart2, Users,
   Megaphone, Stethoscope, Bell, Search, LogOut, HeartPulse,
-  Brain, Tag, Menu, X, ChevronRight, Settings, Sheet, Lock,
+  Brain, Tag, Menu, X, ChevronRight, Settings, Sheet,
 } from 'lucide-react';
 import ClinicOps from './_components/ClinicOps';
 import ExecutiveOverview from './_components/ExecutiveOverview';
@@ -102,19 +102,7 @@ function SidebarContent({
         {NAV.map(({ id, label, icon: Icon, badge, featureKey }) => {
           const active = activeNav === id;
           const locked = !!featureKey && !enabledFeatures.includes(featureKey);
-          if (locked) {
-            return (
-              <div
-                key={id}
-                title="ฟีเจอร์นี้ไม่รวมในแพ็กเกจของคุณ"
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-white/25 cursor-not-allowed select-none"
-              >
-                <Icon size={18} />
-                <span className="flex-1">{label}</span>
-                <Lock size={12} className="shrink-0 opacity-50" />
-              </div>
-            );
-          }
+          if (locked) return null; // ซ่อน item ที่ tier ไม่รองรับ
           return (
             <button
               key={id}
@@ -135,15 +123,19 @@ function SidebarContent({
           );
         })}
 
-        <div className="pt-3 pb-1">
-          <p className="text-[10px] uppercase font-bold text-white/30 tracking-widest px-3 mb-2">Coming Soon</p>
-        </div>
-        {DISABLED_NAV.map(({ label, icon: Icon }) => (
-          <div key={label} className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-white/25 cursor-not-allowed select-none">
-            <Icon size={18} />
-            {label}
-          </div>
-        ))}
+        {DISABLED_NAV.length > 0 && (
+          <>
+            <div className="pt-3 pb-1">
+              <p className="text-[10px] uppercase font-bold text-white/30 tracking-widest px-3 mb-2">Coming Soon</p>
+            </div>
+            {DISABLED_NAV.map(({ label, icon: Icon }) => (
+              <div key={label} className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-white/25 cursor-not-allowed select-none">
+                <Icon size={18} />
+                {label}
+              </div>
+            ))}
+          </>
+        )}
       </nav>
 
       {/* Theme Switcher */}
@@ -406,15 +398,16 @@ export default function DashboardPage() {
         className="lg:hidden fixed bottom-0 inset-x-0 z-20 flex border-t border-slate-200"
         style={{ backgroundColor: '#fff' }}
       >
-        {BOTTOM_NAV.map(({ id, label, icon: Icon }) => {
-          const active = activeNav === id;
+        {BOTTOM_NAV.filter(({ id }) => {
           const navItem = NAV.find(n => n.id === id);
-          const locked = navItem?.featureKey ? !enabledFeatures.includes(navItem.featureKey) : false;
+          return navItem?.featureKey ? enabledFeatures.includes(navItem.featureKey) : true;
+        }).map(({ id, label, icon: Icon }) => {
+          const active = activeNav === id;
           return (
             <button
               key={id}
-              onClick={() => { if (!locked) setActiveNav(id); }}
-              className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 transition-colors ${locked ? 'opacity-30 cursor-not-allowed' : ''}`}
+              onClick={() => setActiveNav(id)}
+              className="flex-1 flex flex-col items-center gap-0.5 py-2.5 transition-colors"
             >
               <div
                 className={`w-9 h-7 rounded-xl flex items-center justify-center transition-all ${active ? 'scale-110' : ''}`}
