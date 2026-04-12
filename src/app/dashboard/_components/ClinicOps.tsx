@@ -251,7 +251,7 @@ export default function ClinicOps() {
                 <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
                 <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} />
                 <Tooltip
-                  formatter={(val: any, name: string) => [
+                  formatter={(val: any, name: any) => [
                     `${fmt(val)} ${name === 'visits' ? 'นัด' : 'slots'}`,
                     name === 'visits' ? 'นัดจริง' : 'ความจุ',
                   ]}
