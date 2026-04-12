@@ -386,7 +386,7 @@ export default function DashboardPage() {
               {activeNav === 'promotions' && <PromotionsManager />}
               {activeNav === 'predictive' && <PredictiveDashboard />}
               {activeNav === 'sheets'     && <SheetsSyncManager />}
-              {activeNav === 'clinicops'  && <ClinicOps />}
+              {activeNav === 'clinicops'  && <ClinicOps globalStart={startDate} globalEnd={endDate} />}
               {activeNav === 'settings'   && <SettingsManager />}
             </>
           ) : (

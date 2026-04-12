@@ -40,11 +40,17 @@ function HeatCell({ count, max }: { count: number; max: number }) {
 }
 
 // ── Main Component ────────────────────────────────────────────
-export default function ClinicOps() {
+type Props = { globalStart?: string; globalEnd?: string };
+
+export default function ClinicOps({ globalStart = '', globalEnd = '' }: Props) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [startDate, setStartDate] = useState(globalStart);
+  const [endDate, setEndDate] = useState(globalEnd);
+
+  // sync กับ global date filter เมื่อ parent เปลี่ยน
+  useEffect(() => { setStartDate(globalStart); }, [globalStart]);
+  useEffect(() => { setEndDate(globalEnd); },   [globalEnd]);
 
   const load = useCallback(async () => {
     setLoading(true);
