@@ -18,13 +18,12 @@ export default function AdminLoginPage() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  // Already logged in as super_admin → go to /admin
+  // Already logged in as super_admin → skip login, go to /admin
+  // ถ้า session เป็น role อื่น → แสดง form ปกติ ไม่บังคับ redirect
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       if (!data.session) return;
-      const role = data.session.user.user_metadata?.role;
-      if (role === 'super_admin') router.replace('/admin');
-      else router.replace('/dashboard');
+      if (data.session.user.user_metadata?.role === 'super_admin') router.replace('/admin');
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
