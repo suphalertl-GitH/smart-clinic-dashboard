@@ -27,9 +27,9 @@ export async function POST(req: NextRequest) {
     }
 
     if (type === 'bulk' && data) {
-      const stats = { patients: { added: 0, updated: 0 }, visits: { added: 0, updated: 0 }, appointments: { added: 0, skipped: 0 } };
+      const stats = { patients: { added: 0, updated: 0 }, visits: { added: 0, updated: 0 }, appointments: { added: 0, updated: 0, skipped: 0 } };
 
-      // Batch upsert patients
+      // ── Batch upsert patients ──────────────────────────────
       const rawPatients = data.patients ?? [];
       if (rawPatients.length > 0) {
         const rows = rawPatients.filter((p: any) => p.hn?.trim()).map((p: any) => {
@@ -58,16 +58,19 @@ export async function POST(req: NextRequest) {
         stats.patients.updated = rows.length;
       }
 
-      // Visits still one-by-one (dedup logic needed)
+      // ── Visits one-by-one (dedup: hn+treatment+price) ─────
       for (const v of data.visits ?? []) {
         const r = await upsertVisit(v);
         if (r === 'added') stats.visits.added++;
         else if (r === 'updated') stats.visits.updated++;
-        if (v.appt_date) {
-          const ar = await upsertAppointment(v);
-          if (ar === 'added') stats.appointments.added++;
-          else stats.appointments.skipped++;
-        }
+      }
+
+      // ── Appointments (separate from visits) ───────────────
+      for (const a of data.appointments ?? []) {
+        const r = await upsertAppointment(a);
+        if (r === 'added') stats.appointments.added++;
+        else if (r === 'updated') stats.appointments.updated++;
+        else stats.appointments.skipped++;
       }
 
       return NextResponse.json({ success: true, stats });
@@ -194,27 +197,40 @@ async function upsertVisit(v: any): Promise<'added' | 'updated' | 'skipped'> {
   }
 }
 
-async function upsertAppointment(v: any): Promise<'added' | 'skipped'> {
-  const apptDate = v.appt_date?.trim();
+async function upsertAppointment(a: any): Promise<'added' | 'updated' | 'skipped'> {
+  const apptDate = a.appt_date?.trim();
   if (!apptDate) return 'skipped';
 
-  const hn = v.hn?.trim() || '';
-  const apptTime = v.appt_time?.trim() || '11:00';
-  const name = v.patient_name?.trim() || v.name?.trim() || hn || 'ไม่ระบุ';
-  const phone = v.phone?.trim() || '';
+  const hn       = a.hn?.trim() || '';
+  const apptTime = a.appt_time?.trim() || '11:00';
+  const name     = a.name?.trim() || hn || 'ไม่ระบุ';
 
   // หา patient_id
   let patientId = null;
   if (hn) {
     const { data: patient } = await supabaseAdmin
-      .from('patients').select('id, full_name, phone')
+      .from('patients').select('id')
       .eq('clinic_id', CLINIC_ID).eq('hn', hn).maybeSingle();
-    if (patient) {
-      patientId = patient.id;
-    }
+    if (patient) patientId = patient.id;
   }
 
-  // เช็คซ้ำ: same date + time + hn
+  const row: any = {
+    clinic_id:     CLINIC_ID,
+    patient_id:    patientId,
+    hn,
+    name,
+    phone:         a.phone?.trim() || null,
+    sales_name:    a.sales_name?.trim() || null,
+    status:        a.customer_type?.trim()?.toLowerCase() === 'new' ? 'new' : 'returning',
+    date:          apptDate,
+    time:          apptTime,
+    procedure:     a.appt_treatment?.trim() || null,
+    note:          a.note?.trim() || null,
+    follow_result: a.follow_result?.trim() || null,
+    follow_status: a.follow_status?.trim() || null,
+  };
+
+  // เช็คซ้ำ: same hn + date + time → update ถ้ามี, insert ถ้าไม่มี
   const { data: existing } = await supabaseAdmin
     .from('appointments').select('id')
     .eq('clinic_id', CLINIC_ID)
@@ -223,20 +239,10 @@ async function upsertAppointment(v: any): Promise<'added' | 'skipped'> {
     .eq('hn', hn)
     .limit(1);
 
-  if (existing && existing.length > 0) return 'skipped';
-
-  await supabaseAdmin.from('appointments').insert({
-    clinic_id: CLINIC_ID,
-    patient_id: patientId,
-    hn,
-    name,
-    phone,
-    sales_name: v.sales_name?.trim() || null,
-    doctor: v.doctor?.trim() || null,
-    status: v.customer_type?.trim()?.toLowerCase() === 'new' ? 'new' : 'returning',
-    date: apptDate,
-    time: apptTime,
-    procedure: v.treatment_name?.trim() || v.appt_treatment?.trim() || null,
-  });
+  if (existing && existing.length > 0) {
+    await supabaseAdmin.from('appointments').update(row).eq('id', existing[0].id);
+    return 'updated';
+  }
+  await supabaseAdmin.from('appointments').insert(row);
   return 'added';
 }
