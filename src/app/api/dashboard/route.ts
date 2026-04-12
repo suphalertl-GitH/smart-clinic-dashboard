@@ -36,9 +36,10 @@ export async function GET(req: NextRequest) {
   const startDate = req.nextUrl.searchParams.get('startDate');
   const endDate = req.nextUrl.searchParams.get('endDate');
 
-  const [{ data: allVisits }, { data: allPatients }] = await Promise.all([
+  const [{ data: allVisits }, { data: allPatients }, { data: clinicRow }] = await Promise.all([
     supabaseAdmin.from('visits').select('*').eq('clinic_id', clinic_id).limit(5000),
     supabaseAdmin.from('patients').select('*').eq('clinic_id', clinic_id).limit(5000),
+    supabaseAdmin.from('clinics').select('tier').eq('id', clinic_id).single(),
   ]);
 
   const start = startDate ? new Date(startDate) : null;
@@ -217,5 +218,6 @@ export async function GET(req: NextRequest) {
     ].filter(s => s.count > 0),
     channelPerformance: Object.entries(sourceMap).sort(([, a], [, b]) => b - a).slice(0, 6).map(([source, count]) => ({ source, count })),
     lastUpdated: getThaiNow().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+    tier: clinicRow?.tier ?? 'starter',
   });
 }

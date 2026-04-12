@@ -1,14 +1,14 @@
 'use client';
 
-import { DollarSign, TrendingUp, Users, UserCheck, Target, Activity } from 'lucide-react';
+import { DollarSign, TrendingUp, Users, UserCheck, Target, Activity, Lock } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import KpiCard, { fmt, calcPct, CHART_COLORS } from './KpiCard';
 import ExecutiveSummary from './ExecutiveSummary';
 
 type Theme = { bg: string; bgDark: string; accent: string; gradient: string };
-type Props  = { data: any; theme: Theme };
+type Props  = { data: any; theme: Theme; tier?: string };
 
-export default function ExecutiveOverview({ data, theme }: Props) {
+export default function ExecutiveOverview({ data, theme, tier = 'starter' }: Props) {
   const { kpis, revenueTrend, topTreatments, topDoctors } = data;
 
   const accentGradient = `linear-gradient(135deg, ${theme.accent} 0%, #f59e0b 100%)`;
@@ -135,7 +135,25 @@ export default function ExecutiveOverview({ data, theme }: Props) {
             })}
           </div>
         </div>
-        <ExecutiveSummary />
+        {tier === 'starter' ? (
+          <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm flex flex-col items-center justify-center gap-3 min-h-[200px]">
+            <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center">
+              <Lock size={22} className="text-slate-400" />
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-semibold text-slate-700 flex items-center justify-center gap-1.5">
+                Executive AI Summary <span className="text-[9px] px-1.5 py-0.5 rounded font-bold bg-violet-100 text-violet-600">AI</span>
+              </p>
+              <p className="text-xs text-slate-400 mt-1">ฟีเจอร์นี้สำหรับ <span className="font-semibold text-violet-600">Professional</span> ขึ้นไป</p>
+            </div>
+            <a href="mailto:support@smartclinic.app"
+              className="text-xs px-4 py-2 rounded-xl bg-violet-600 text-white font-medium hover:bg-violet-700 transition">
+              อัพเกรดแพ็กเกจ
+            </a>
+          </div>
+        ) : (
+          <ExecutiveSummary />
+        )}
       </div>
     </div>
   );

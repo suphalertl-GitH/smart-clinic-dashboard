@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Activity, RefreshCw, LayoutDashboard, BarChart2, Users,
   Megaphone, Stethoscope, Bell, Search, LogOut, HeartPulse,
-  Brain, Tag, Menu, X, ChevronRight, Settings, Sheet,
+  Brain, Tag, Menu, X, ChevronRight, Settings, Sheet, Lock,
 } from 'lucide-react';
 import ExecutiveOverview from './_components/ExecutiveOverview';
 import SalesAnalytics from './_components/SalesAnalytics';
@@ -31,16 +31,25 @@ const THEMES: Record<ThemeKey, { bg: string; bgDark: string; accent: string; gra
 
 // ── Nav items ─────────────────────────────────────────────────
 type NavId = 'overview' | 'sales' | 'customers' | 'crm' | 'promotions' | 'predictive' | 'sheets' | 'settings';
-const NAV: { id: NavId; label: string; icon: React.FC<any>; badge?: string }[] = [
+type Tier = 'starter' | 'professional' | 'enterprise';
+
+const NAV: { id: NavId; label: string; icon: React.FC<any>; badge?: string; minTier?: Tier }[] = [
   { id: 'overview',   label: 'แดชบอร์ด',          icon: LayoutDashboard },
-  { id: 'sales',      label: 'Sales Analytics',   icon: BarChart2 },
-  { id: 'customers',  label: 'Customer Insights', icon: Users },
-  { id: 'crm',        label: 'CRM & Campaigns',   icon: Megaphone },
-  { id: 'promotions', label: 'Promotions',         icon: Tag },
-  { id: 'predictive', label: 'Predictive AI',      icon: Brain, badge: 'AI' },
-  { id: 'sheets',     label: 'Google Sheets',      icon: Sheet },
-  { id: 'settings',   label: 'Settings',           icon: Settings },
+  { id: 'sales',      label: 'Sales Analytics',   icon: BarChart2,  minTier: 'professional' },
+  { id: 'customers',  label: 'Customer Insights', icon: Users,      minTier: 'professional' },
+  { id: 'crm',        label: 'CRM & Campaigns',   icon: Megaphone,  minTier: 'professional' },
+  { id: 'promotions', label: 'Promotions',         icon: Tag,        minTier: 'professional' },
+  { id: 'predictive', label: 'Predictive AI',      icon: Brain,      minTier: 'enterprise', badge: 'AI' },
+  { id: 'sheets',     label: 'Google Sheets',      icon: Sheet,      minTier: 'professional' },
+  { id: 'settings',   label: 'Settings',           icon: Settings,   minTier: 'professional' },
 ];
+
+const TIER_RANK: Record<Tier, number> = { starter: 0, professional: 1, enterprise: 2 };
+function hasAccess(clinicTier: Tier, minTier?: Tier) {
+  if (!minTier) return true;
+  return TIER_RANK[clinicTier] >= TIER_RANK[minTier];
+}
+const TIER_LABEL: Record<Tier, string> = { starter: 'Starter', professional: 'Professional', enterprise: 'Enterprise' };
 const DISABLED_NAV = [
   { label: 'Clinic Ops', icon: Activity },
 ];
@@ -67,7 +76,7 @@ const PAGE_TITLE: Record<NavId, string> = {
 
 // ── Sidebar inner content (reused in both desktop & drawer) ────
 function SidebarContent({
-  activeNav, setActiveNav, theme, setTheme, t, onNavClick,
+  activeNav, setActiveNav, theme, setTheme, t, onNavClick, tier,
 }: {
   activeNav: NavId;
   setActiveNav: (id: NavId) => void;
@@ -75,6 +84,7 @@ function SidebarContent({
   setTheme: (k: ThemeKey) => void;
   t: typeof THEMES.teal;
   onNavClick?: () => void;
+  tier: Tier;
 }) {
   return (
     <>
@@ -86,15 +96,31 @@ function SidebarContent({
           </div>
           <div>
             <h1 className="font-heading font-bold text-base leading-tight">Smart Clinic</h1>
-            <p className="text-xs text-white/50">Management System</p>
+            <p className="text-xs text-white/50">{TIER_LABEL[tier]}</p>
           </div>
         </div>
       </div>
 
       {/* Nav */}
       <nav className="flex-1 py-4 px-3 space-y-1 overflow-auto">
-        {NAV.map(({ id, label, icon: Icon, badge }) => {
+        {NAV.map(({ id, label, icon: Icon, badge, minTier }) => {
           const active = activeNav === id;
+          const locked = !hasAccess(tier, minTier);
+          if (locked) {
+            return (
+              <div
+                key={id}
+                title={`ต้องการ ${TIER_LABEL[minTier!]} ขึ้นไป`}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-white/25 cursor-not-allowed select-none"
+              >
+                <Icon size={18} />
+                <span className="flex-1">{label}</span>
+                <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded font-bold bg-white/10 text-white/30">
+                  <Lock size={8} /> {TIER_LABEL[minTier!]}+
+                </span>
+              </div>
+            );
+          }
           return (
             <button
               key={id}
@@ -178,6 +204,7 @@ export default function DashboardPage() {
   const [endDate, setEndDate]       = useState('');
   const [theme, setTheme]           = useState<ThemeKey>('teal');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [tier, setTier]             = useState<Tier>('starter');
 
   const t = THEMES[theme];
 
@@ -190,7 +217,9 @@ export default function DashboardPage() {
       const res  = await fetch(`/api/dashboard?${params}`);
       const text = await res.text();
       if (!text) throw new Error('empty');
-      setDashData(JSON.parse(text));
+      const parsed = JSON.parse(text);
+      setDashData(parsed);
+      if (parsed.tier) setTier(parsed.tier as Tier);
       setUsingMock(false);
     } catch (e: any) {
       console.warn('Dashboard: using mock data —', e.message);
@@ -210,7 +239,7 @@ export default function DashboardPage() {
     return () => window.removeEventListener('resize', handler);
   }, []);
 
-  const sidebarProps = { activeNav, setActiveNav, theme, setTheme, t };
+  const sidebarProps = { activeNav, setActiveNav, theme, setTheme, t, tier };
 
   return (
     <div className="flex h-full w-full font-body overflow-hidden" style={{ backgroundColor: '#f1f5f9' }}>
@@ -346,7 +375,7 @@ export default function DashboardPage() {
             </div>
           ) : dashData ? (
             <>
-              {activeNav === 'overview'   && <ExecutiveOverview data={dashData} theme={t} />}
+              {activeNav === 'overview'   && <ExecutiveOverview data={dashData} theme={t} tier={tier} />}
               {activeNav === 'sales'      && <SalesAnalytics data={dashData} />}
               {activeNav === 'customers'  && <CustomerInsights data={dashData} />}
               {activeNav === 'crm'        && <CrmInsights />}
@@ -368,11 +397,13 @@ export default function DashboardPage() {
       >
         {BOTTOM_NAV.map(({ id, label, icon: Icon }) => {
           const active = activeNav === id;
+          const navItem = NAV.find(n => n.id === id);
+          const locked = navItem ? !hasAccess(tier, navItem.minTier) : false;
           return (
             <button
               key={id}
-              onClick={() => setActiveNav(id)}
-              className="flex-1 flex flex-col items-center gap-0.5 py-2.5 transition-colors"
+              onClick={() => { if (!locked) setActiveNav(id); }}
+              className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 transition-colors ${locked ? 'opacity-30 cursor-not-allowed' : ''}`}
             >
               <div
                 className={`w-9 h-7 rounded-xl flex items-center justify-center transition-all ${active ? 'scale-110' : ''}`}
