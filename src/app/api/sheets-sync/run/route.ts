@@ -48,7 +48,8 @@ const normalizePayment = (v: string | null): string => {
 function parseThaiDate(v: any): string | null {
   if (!v) return null;
   const str = String(v).trim();
-  const m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  // ลบ $ ออก เพื่อรองรับ timestamp ที่มีเวลาต่อท้าย เช่น "11/4/2026, 13:45"
+  const m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
   if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
   if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0, 10);
   return null;
