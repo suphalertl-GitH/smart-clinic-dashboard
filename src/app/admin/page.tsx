@@ -51,6 +51,7 @@ const FEATURE_META = [
   { key: 'google_sheets',     label: 'Google Sheets',        desc: 'Sync ข้อมูลกับ Google Sheets' },
   { key: 'predictive',        label: 'Predictive AI',        desc: 'AI พยากรณ์ revenue/churn' },
   { key: 'followup_bot',      label: 'Smart CRM Bot',        desc: 'Bot follow-up อัตโนมัติทาง LINE' },
+  { key: 'clinic_ops',        label: 'Clinic Ops',           desc: 'Heatmap นัด + workload แพทย์' },
 ] as const;
 
 function fmt(n: number) {

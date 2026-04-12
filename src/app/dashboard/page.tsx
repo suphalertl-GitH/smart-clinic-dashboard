@@ -41,7 +41,7 @@ const NAV: { id: NavId; label: string; icon: React.FC<any>; badge?: string; feat
   { id: 'promotions', label: 'Promotions',         icon: Tag,        featureKey: 'promotions' },
   { id: 'predictive', label: 'Predictive AI',      icon: Brain,      featureKey: 'predictive', badge: 'AI' },
   { id: 'sheets',     label: 'Google Sheets',      icon: Sheet,      featureKey: 'google_sheets' },
-  { id: 'clinicops',  label: 'Clinic Ops',          icon: Activity },
+  { id: 'clinicops',  label: 'Clinic Ops',          icon: Activity,   featureKey: 'clinic_ops' },
   { id: 'settings',   label: 'Settings',           icon: Settings },
 ];
 const DISABLED_NAV: { label: string; icon: React.FC<any> }[] = [];

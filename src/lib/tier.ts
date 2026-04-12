@@ -12,19 +12,20 @@ export type FeatureKey =
   | 'promptpay'
   | 'google_sheets'
   | 'predictive'
-  | 'followup_bot';
+  | 'followup_bot'
+  | 'clinic_ops';
 
 /** Features included in each standard tier */
 export const TIER_FEATURES: Record<Exclude<Tier, 'custom'>, FeatureKey[]> = {
   starter: ['sales_analytics'],
   professional: [
     'sales_analytics', 'customer_insights', 'ai_summary',
-    'promotions', 'crm', 'promptpay', 'google_sheets',
+    'promotions', 'crm', 'promptpay', 'google_sheets', 'clinic_ops',
   ],
   enterprise: [
     'sales_analytics', 'customer_insights', 'ai_summary',
     'promotions', 'crm', 'promptpay', 'google_sheets',
-    'predictive', 'followup_bot',
+    'predictive', 'followup_bot', 'clinic_ops',
   ],
 };
 
@@ -39,6 +40,7 @@ export const FEATURE_META: { key: FeatureKey; label: string; desc: string }[] = 
   { key: 'google_sheets',     label: 'Google Sheets',        desc: 'Sync ข้อมูลกับ Google Sheets' },
   { key: 'predictive',        label: 'Predictive AI',        desc: 'AI พยากรณ์ revenue/churn' },
   { key: 'followup_bot',      label: 'Smart CRM Bot',        desc: 'Bot follow-up อัตโนมัติทาง LINE' },
+  { key: 'clinic_ops',        label: 'Clinic Ops',           desc: 'Heatmap นัด + workload แพทย์' },
 ];
 
 /** ดึง enabled features ของ clinic */
