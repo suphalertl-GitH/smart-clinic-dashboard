@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { createBrowserClient } from '@supabase/ssr';
 import {
   Activity, RefreshCw, LayoutDashboard, BarChart2, Users,
   Megaphone, Stethoscope, Bell, Search, LogOut, HeartPulse,
@@ -69,7 +70,7 @@ const PAGE_TITLE: Record<NavId, string> = {
 
 // ── Sidebar inner content (reused in both desktop & drawer) ────
 function SidebarContent({
-  activeNav, setActiveNav, theme, setTheme, t, onNavClick, enabledFeatures, tierLabel,
+  activeNav, setActiveNav, theme, setTheme, t, onNavClick, enabledFeatures, tierLabel, onLogout,
 }: {
   activeNav: NavId;
   setActiveNav: (id: NavId) => void;
@@ -79,6 +80,7 @@ function SidebarContent({
   onNavClick?: () => void;
   enabledFeatures: string[];
   tierLabel: string;
+  onLogout: () => void;
 }) {
   return (
     <>
@@ -177,7 +179,8 @@ function SidebarContent({
             <p className="text-sm font-medium truncate">Admin</p>
             <p className="text-xs text-white/40">ผู้ดูแลระบบ</p>
           </div>
-          <button className="text-white/40 hover:text-white transition-colors">
+          <button onClick={onLogout} title="ออกจากระบบ"
+            className="text-white/40 hover:text-white transition-colors">
             <LogOut size={16} />
           </button>
         </div>
@@ -236,7 +239,17 @@ export default function DashboardPage() {
     return () => window.removeEventListener('resize', handler);
   }, []);
 
-  const sidebarProps = { activeNav, setActiveNav, theme, setTheme, t, enabledFeatures, tierLabel };
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    window.location.href = '/login';
+  }
+
+  const sidebarProps = { activeNav, setActiveNav, theme, setTheme, t, enabledFeatures, tierLabel, onLogout: handleLogout };
 
   return (
     <div className="flex h-full w-full font-body overflow-hidden" style={{ backgroundColor: '#f1f5f9' }}>
