@@ -141,8 +141,9 @@ async function syncVisits(visRows: Record<string, string>[], filterToday?: strin
       .from('visits').select('id')
       .eq('clinic_id', CLINIC_ID).eq('hn', hn)
       .eq('treatment_name', treatmentName).eq('price', p);
-    if (visitDate) existingQuery = existingQuery.eq('visit_date', visitDate);
-    const { data: existing } = await existingQuery.limit(1);
+    // mode=today: จับเฉพาะ record วันนี้ | mode=full: จับ record ล่าสุดโดยไม่กรองวัน
+    if (filterToday && visitDate) existingQuery = existingQuery.eq('visit_date', visitDate);
+    const { data: existing } = await existingQuery.order('created_at', { ascending: false }).limit(1);
 
     if (existing && existing.length > 0) {
       await supabaseAdmin.from('visits').update(row).eq('id', existing[0].id);
