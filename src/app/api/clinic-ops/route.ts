@@ -11,9 +11,6 @@ export async function GET(req: NextRequest) {
   const startDate = req.nextUrl.searchParams.get('startDate');
   const endDate = req.nextUrl.searchParams.get('endDate');
 
-  const start = startDate ? new Date(startDate) : null;
-  const end = endDate ? new Date(endDate + 'T23:59:59') : null;
-
   let query = supabaseAdmin.from('appointments').select('*').eq('clinic_id', CLINIC_ID).limit(5000);
   if (startDate) query = query.gte('date', startDate);
   if (endDate) query = query.lte('date', endDate);
@@ -28,7 +25,8 @@ export async function GET(req: NextRequest) {
   let minTime = Infinity, maxTime = -Infinity;
 
   for (const a of appointments) {
-    const date = new Date(a.date);
+    // append time to force local-time parsing (bare date strings parse as UTC → wrong day in +7)
+    const date = new Date(a.date + 'T00:00:00');
     const t = date.getTime();
     if (t < minTime) minTime = t;
     if (t > maxTime) maxTime = t;
