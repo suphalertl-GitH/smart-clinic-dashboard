@@ -137,20 +137,33 @@ async function syncVisits(visRows: Record<string, string>[], filterToday?: strin
       visit_date:     visitDate,
     };
 
-    let existingQuery = supabaseAdmin
-      .from('visits').select('id')
-      .eq('clinic_id', CLINIC_ID).eq('hn', hn)
-      .eq('treatment_name', treatmentName).eq('price', p);
-    // mode=today: จับเฉพาะ record วันนี้ | mode=full: จับ record ล่าสุดโดยไม่กรองวัน
-    if (filterToday && visitDate) existingQuery = existingQuery.eq('visit_date', visitDate);
-    const { data: existing } = await existingQuery.order('created_at', { ascending: false }).limit(1);
-
-    if (existing && existing.length > 0) {
-      await supabaseAdmin.from('visits').update(row).eq('id', existing[0].id);
-      updated++;
+    if (filterToday && visitDate) {
+      // mode=today: strict dedup วันนี้เท่านั้น
+      const { data: existing } = await supabaseAdmin.from('visits').select('id')
+        .eq('clinic_id', CLINIC_ID).eq('hn', hn)
+        .eq('treatment_name', treatmentName).eq('price', p)
+        .eq('visit_date', visitDate).limit(1);
+      if (existing && existing.length > 0) {
+        await supabaseAdmin.from('visits').update(row).eq('id', existing[0].id);
+        updated++;
+      } else {
+        await supabaseAdmin.from('visits').insert(row);
+        added++;
+      }
     } else {
-      await supabaseAdmin.from('visits').insert(row);
-      added++;
+      // mode=full: UPDATE ทุก record ที่ match (รวม null-doctor เก่า), ถ้าไม่มีเลยค่อย INSERT
+      const { data: allMatch } = await supabaseAdmin.from('visits').select('id')
+        .eq('clinic_id', CLINIC_ID).eq('hn', hn)
+        .eq('treatment_name', treatmentName).eq('price', p);
+      if (allMatch && allMatch.length > 0) {
+        await supabaseAdmin.from('visits').update(row)
+          .eq('clinic_id', CLINIC_ID).eq('hn', hn)
+          .eq('treatment_name', treatmentName).eq('price', p);
+        updated++;
+      } else {
+        await supabaseAdmin.from('visits').insert(row);
+        added++;
+      }
     }
   }
   return { total: visits.length, added, updated };
