@@ -22,10 +22,14 @@ export default function LoginPage() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
+  function redirectByRole(role?: string) {
+    router.replace(role === 'super_admin' ? '/admin' : '/dashboard');
+  }
+
   // Redirect if already logged in
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) router.replace('/dashboard');
+      if (data.session) redirectByRole(data.session.user.user_metadata?.role);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -35,7 +39,7 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
       setError('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
@@ -43,8 +47,7 @@ export default function LoginPage() {
       return;
     }
 
-    router.push('/dashboard');
-    router.refresh();
+    redirectByRole(data.user?.user_metadata?.role);
   }
 
   async function handleForgotPassword(e: React.FormEvent) {
