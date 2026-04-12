@@ -30,14 +30,16 @@ export default function SalesAnalytics({ data, theme }: Props) {
   const totalSales = salesRanking.reduce((sum: number, s: any) => sum + s.revenue, 0);
   const topPerformer = salesRanking[0] ?? null;
 
-  // Avg ticket size per category (from topServices)
-  const avgByCategory: Record<string, number> = {};
+  // Avg ticket size per category — weighted avg (total revenue / total visits per category)
+  const catRevMap: Record<string, { revenue: number; visits: number }> = {};
   for (const s of topServices ?? []) {
-    if (!avgByCategory[s.category] || s.avgPerVisit > avgByCategory[s.category]) {
-      avgByCategory[s.category] = s.avgPerVisit;
-    }
+    if (!catRevMap[s.category]) catRevMap[s.category] = { revenue: 0, visits: 0 };
+    catRevMap[s.category].revenue += s.revenue;
+    catRevMap[s.category].visits  += s.visits;
   }
-  const avgCards = Object.entries(avgByCategory).slice(0, 4).map(([cat, avg]) => ({ cat, avg }));
+  const avgCards = Object.entries(catRevMap).slice(0, 4).map(([cat, { revenue, visits }]) => ({
+    cat, avg: visits > 0 ? Math.round(revenue / visits) : 0,
+  }));
 
   return (
     <div className="space-y-6">

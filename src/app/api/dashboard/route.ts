@@ -30,6 +30,24 @@ function getThaiNow() {
   return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
 }
 
+// ดึงข้อมูลทั้งหมดโดย paginate รอบ Supabase max_rows=1000 limit
+async function fetchAll(table: string, clinic_id: string, fields = '*') {
+  const PAGE = 1000;
+  let all: any[] = [];
+  let page = 0;
+  while (true) {
+    const { data, error } = await supabaseAdmin
+      .from(table).select(fields)
+      .eq('clinic_id', clinic_id)
+      .range(page * PAGE, (page + 1) * PAGE - 1);
+    if (error || !data || data.length === 0) break;
+    all = all.concat(data);
+    if (data.length < PAGE) break;
+    page++;
+  }
+  return all;
+}
+
 // GET /api/dashboard?startDate=2024-01-01&endDate=2024-12-31
 export async function GET(req: NextRequest) {
   const clinic_id = CLINIC_ID;
@@ -37,9 +55,9 @@ export async function GET(req: NextRequest) {
   const startDate = req.nextUrl.searchParams.get('startDate');
   const endDate = req.nextUrl.searchParams.get('endDate');
 
-  const [{ data: allVisits }, { data: allPatients }, { data: clinicRow }, enabledFeatures] = await Promise.all([
-    supabaseAdmin.from('visits').select('*').eq('clinic_id', clinic_id).limit(5000),
-    supabaseAdmin.from('patients').select('*').eq('clinic_id', clinic_id).limit(5000),
+  const [allVisits, allPatients, { data: clinicRow }, enabledFeatures] = await Promise.all([
+    fetchAll('visits', clinic_id),
+    fetchAll('patients', clinic_id),
     supabaseAdmin.from('clinics').select('tier').eq('id', clinic_id).single(),
     getEnabledFeatures(clinic_id),
   ]);
@@ -102,7 +120,7 @@ export async function GET(req: NextRequest) {
     monthlyRevenueMap[mk] = (monthlyRevenueMap[mk] || 0) + revenue;
     dailyRevenueMap[vDateStr] = (dailyRevenueMap[vDateStr] || 0) + revenue;
 
-    const ct = v.customer_type ?? '';
+    const ct = v.customer_type || 'returning';
     if (ct === 'new') { monthlyNew[mk] = (monthlyNew[mk] || 0) + 1; totalNew++; }
     else { monthlyRet[mk] = (monthlyRet[mk] || 0) + 1; totalRet++; }
     customerTypeMap[ct] = (customerTypeMap[ct] || 0) + 1;
@@ -141,7 +159,8 @@ export async function GET(req: NextRequest) {
 
   for (const p of patients) {
     if (p.source) sourceMap[p.source] = (sourceMap[p.source] || 0) + 1;
-    const d = new Date(p.created_at);
+    // ใช้ Bangkok timezone เพื่อให้ consistent กับ revenue grouping
+    const d = new Date(new Date(p.created_at).toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
     patientMonthMap[getMonthKey(d)] = (patientMonthMap[getMonthKey(d)] || 0) + 1;
   }
 

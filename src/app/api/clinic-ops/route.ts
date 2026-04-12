@@ -19,7 +19,6 @@ export async function GET(req: NextRequest) {
   const appointments = appts ?? [];
 
   const heatmapMap: Record<string, number> = {};
-  const doctorVisitMap: Record<string, number> = {};
   const statusCountMap: Record<string, number> = {};
   let noShowCount = 0;
   let minTime = Infinity, maxTime = -Infinity;
@@ -40,13 +39,23 @@ export async function GET(req: NextRequest) {
       heatmapMap[key] = (heatmapMap[key] || 0) + 1;
     }
 
-    const docKey = a.doctor?.trim() || 'ไม่ระบุแพทย์';
-    doctorVisitMap[docKey] = (doctorVisitMap[docKey] || 0) + 1;
-
     const st = (a.note ?? '').toLowerCase();
     const noShow = st.includes('no-show') || st.includes('noshow') || st.includes('ไม่มา');
     if (noShow) noShowCount++;
     statusCountMap[noShow ? 'No-show' : 'Completed'] = (statusCountMap[noShow ? 'No-show' : 'Completed'] || 0) + 1;
+  }
+
+  // Doctor workload — ดึงจาก visits table (มี doctor field จาก sheet sync)
+  // เพราะ appointments table ไม่มี column doctor
+  let visitsQuery = supabaseAdmin.from('visits').select('doctor').eq('clinic_id', CLINIC_ID).limit(5000);
+  if (startDate) visitsQuery = visitsQuery.gte('visit_date', startDate);
+  if (endDate)   visitsQuery = visitsQuery.lte('visit_date', endDate);
+  const { data: visitsData } = await visitsQuery;
+
+  const doctorVisitMap: Record<string, number> = {};
+  for (const v of visitsData ?? []) {
+    const docKey = v.doctor?.trim() || 'ไม่ระบุแพทย์';
+    doctorVisitMap[docKey] = (doctorVisitMap[docKey] || 0) + 1;
   }
 
   const total = appointments.length;
@@ -63,7 +72,7 @@ export async function GET(req: NextRequest) {
   }
   const [peakDayStr, peakHour] = peakKey.split('-');
 
-  // Doctor workload — ใช้ doctor_names จาก settings + นับจาก appointments จริง
+  // Doctor workload — ใช้ doctor_names จาก settings + นับจาก visits จริง
   const { data: settingsData } = await supabaseAdmin.from('settings').select('doctor_names').eq('clinic_id', CLINIC_ID).single();
   const doctorNames: string[] = settingsData?.doctor_names ?? [];
 
