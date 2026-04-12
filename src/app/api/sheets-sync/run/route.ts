@@ -140,10 +140,13 @@ async function syncVisits(visRows: Record<string, string>[], filterToday?: strin
     // customer_type: เก็บเฉพาะที่ชีตระบุ 'new' ไว้ชัดเจน ที่เหลือเป็น null ก่อน (resolve ตอน upsert)
     const incomingCustomerType = s(r['Customer_Type'])?.toLowerCase() === 'new' ? 'new' : null;
 
+    const visitName = s(r['ชื่อ']) || null;
+
     const row: any = {
       clinic_id:      CLINIC_ID,
       patient_id:     patient?.id || null,
       hn,
+      name:           visitName,
       treatment_name: treatmentName,
       price:          p,
       doctor:         s(r['ชื่อแพทย์ที่ให้บริการ'] || r['ชื่อแพทย์'] || r['Doctor']),
@@ -158,40 +161,26 @@ async function syncVisits(visRows: Record<string, string>[], filterToday?: strin
     const dedupStart = visitDate ? new Date(visitDate + 'T00:00:00+07:00').toISOString() : undefined;
     const dedupEnd   = visitDate ? new Date(visitDate + 'T23:59:59+07:00').toISOString() : undefined;
 
-    if (filterToday && visitDate) {
-      // mode=today: strict dedup ด้วย hn + treatment + price + วันที่
+    // dedup query: ถ้า HN ว่าง ใช้ name (ชื่อลูกค้า) แยกแยะแทน
+    function buildDedupQuery() {
       let q = supabaseAdmin.from('visits').select('id, customer_type')
         .eq('clinic_id', CLINIC_ID).eq('hn', hn)
         .eq('treatment_name', treatmentName).eq('price', p);
+      if (!hn && visitName) q = q.eq('name', visitName);
       if (dedupStart && dedupEnd) q = q.gte('created_at', dedupStart).lte('created_at', dedupEnd);
-      const { data: existing } = await q.limit(1);
-      if (existing && existing.length > 0) {
-        const { created_at: _c, customer_type: _ct, ...updateFields } = row;
-        const finalType = incomingCustomerType ?? existing[0].customer_type ?? 'returning';
-        await supabaseAdmin.from('visits').update({ ...updateFields, customer_type: finalType }).eq('id', existing[0].id);
-        updated++;
-      } else {
-        const { error } = await supabaseAdmin.from('visits').insert(row);
-        if (error) console.error('visit insert error:', error.message, { hn, treatmentName });
-        else added++;
-      }
+      return q;
+    }
+
+    const { data: existing } = await buildDedupQuery().limit(1);
+    if (existing && existing.length > 0) {
+      const { created_at: _c, customer_type: _ct, ...updateFields } = row;
+      const finalType = incomingCustomerType ?? existing[0].customer_type ?? 'returning';
+      await supabaseAdmin.from('visits').update({ ...updateFields, customer_type: finalType }).eq('id', existing[0].id);
+      updated++;
     } else {
-      // mode=full: dedup ด้วย hn + treatment + price + วันที่
-      let q = supabaseAdmin.from('visits').select('id, customer_type')
-        .eq('clinic_id', CLINIC_ID).eq('hn', hn)
-        .eq('treatment_name', treatmentName).eq('price', p);
-      if (dedupStart && dedupEnd) q = q.gte('created_at', dedupStart).lte('created_at', dedupEnd);
-      const { data: existing } = await q.limit(1);
-      if (existing && existing.length > 0) {
-        const { created_at: _c, customer_type: _ct, ...updateFields } = row;
-        const finalType = incomingCustomerType ?? existing[0].customer_type ?? 'returning';
-        await supabaseAdmin.from('visits').update({ ...updateFields, customer_type: finalType }).eq('id', existing[0].id);
-        updated++;
-      } else {
-        const { error } = await supabaseAdmin.from('visits').insert(row);
-        if (error) console.error('visit insert error:', error.message, { hn, treatmentName });
-        else added++;
-      }
+      const { error } = await supabaseAdmin.from('visits').insert(row);
+      if (error) console.error('visit insert error:', error.message, { hn, treatmentName });
+      else added++;
     }
   }
   return { total: visits.length, added, updated };
