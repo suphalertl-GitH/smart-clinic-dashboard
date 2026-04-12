@@ -56,9 +56,7 @@ export async function GET(req: NextRequest) {
     for (const a of appointments ?? []) {
       if (a.hn && a.name) hnName[a.hn] = a.name;
     }
-    for (const v of visits ?? []) {
-      if (v.hn && v.name) hnName[v.hn] = v.name; // visits ทับถ้ามี
-    }
+    // visits ไม่มี name column — ใช้ appointments เป็น source หลัก
 
     const treatmentCycles: { treatment: string; days: number }[] = settings?.treatment_cycles ?? [
       { treatment: 'Botox', days: 120 },
