@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { requireTier } from '@/lib/tier';
 
 const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
 
 // PATCH /api/promotions/[id] — update fields
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const gate = await requireTier(CLINIC_ID, 'professional');
+  if (gate) return gate;
   try {
     const body = await req.json();
     const { id } = await params;
@@ -33,6 +36,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
 // DELETE /api/promotions/[id]
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const gate = await requireTier(CLINIC_ID, 'professional');
+  if (gate) return gate;
   const { id } = await params;
   const { error } = await supabaseAdmin
     .from('promotions')

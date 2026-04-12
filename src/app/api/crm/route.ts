@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { requireTier } from '@/lib/tier';
 
 const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
 
 // GET /api/crm — CRM overview + RFM segments
 export async function GET() {
+  const gate = await requireTier(CLINIC_ID, 'professional');
+  if (gate) return gate;
   try {
     const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
 

@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { claudeComplete } from '@/lib/claude';
 import { supabaseAdmin } from '@/lib/supabase';
+import { requireTier } from '@/lib/tier';
 
 const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
 
 // POST /api/ai-summary
 export async function POST(_req: NextRequest) {
+  const gate = await requireTier(CLINIC_ID, 'professional');
+  if (gate) return gate;
   try {
     // ดึงข้อมูลเดือนนี้
     const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));

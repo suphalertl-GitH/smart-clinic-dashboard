@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { pushMessage, textMessage } from '@/lib/line';
+import { requireTier } from '@/lib/tier';
 
 const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
 
 // GET /api/crm/campaigns — ดึงรายการ campaigns + preview กลุ่มเป้าหมาย
 export async function GET(req: NextRequest) {
+  const gate = await requireTier(CLINIC_ID, 'professional');
+  if (gate) return gate;
   const preview = req.nextUrl.searchParams.get('preview');
   const targetTier = req.nextUrl.searchParams.get('tier') ?? null;
   const targetTreatment = req.nextUrl.searchParams.get('treatment') ?? null;
@@ -29,6 +32,8 @@ export async function GET(req: NextRequest) {
 
 // POST /api/crm/campaigns — สร้าง campaign ใหม่และส่ง LINE ทันที
 export async function POST(req: NextRequest) {
+  const gate = await requireTier(CLINIC_ID, 'professional');
+  if (gate) return gate;
   try {
     const body = await req.json();
     const { name, message, targetTier, targetTreatment, minDays } = body;
