@@ -44,15 +44,19 @@ export async function GET(req: NextRequest) {
     getEnabledFeatures(clinic_id),
   ]);
 
-  const start = startDate ? new Date(startDate) : null;
-  const end = endDate ? new Date(endDate + 'T23:59:59') : null;
+  // Convert any UTC timestamp to a Bangkok date string 'YYYY-MM-DD'
+  const toBkkDate = (dateStr: string) => {
+    const s = new Date(dateStr).toLocaleString('en-US', { timeZone: 'Asia/Bangkok' });
+    const d = new Date(s);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
 
   const inRange = (dateStr?: string) => {
-    if (!start && !end) return true;
+    if (!startDate && !endDate) return true;
     if (!dateStr) return true;
-    const d = new Date(dateStr);
-    if (start && d < start) return false;
-    if (end && d > end) return false;
+    const bkk = toBkkDate(dateStr);
+    if (startDate && bkk < startDate) return false;
+    if (endDate && bkk > endDate) return false;
     return true;
   };
 
@@ -79,6 +83,7 @@ export async function GET(req: NextRequest) {
   const customerTypeMap: Record<string, number> = {};
 
   let revenueToday = 0;
+  let revenuePeriod = 0;
   let currentMonthVisits = 0;
   let currentMonthCompleted = 0;
 
@@ -88,6 +93,7 @@ export async function GET(req: NextRequest) {
     const mk = getMonthKey(createdThai);
     const vDateStr = createdThai.toISOString().split('T')[0];
 
+    revenuePeriod += revenue;
     if (vDateStr === todayStr) revenueToday += revenue;
     monthlyRevenueMap[mk] = (monthlyRevenueMap[mk] || 0) + revenue;
     dailyRevenueMap[vDateStr] = (dailyRevenueMap[vDateStr] || 0) + revenue;
@@ -157,7 +163,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     kpis: {
-      revenueToday,
+      revenueToday: (startDate || endDate) ? revenuePeriod : revenueToday,
       monthlyRevenue,
       prevMonthRevenue,
       newCustomers: monthlyNew[currentMonthKey] || 0,

@@ -6,9 +6,9 @@ import KpiCard, { fmt, calcPct, CHART_COLORS } from './KpiCard';
 import ExecutiveSummary from './ExecutiveSummary';
 
 type Theme = { bg: string; bgDark: string; accent: string; gradient: string };
-type Props  = { data: any; theme: Theme; enabledFeatures?: string[] };
+type Props  = { data: any; theme: Theme; enabledFeatures?: string[]; hasDateFilter?: boolean };
 
-export default function ExecutiveOverview({ data, theme, enabledFeatures = [] }: Props) {
+export default function ExecutiveOverview({ data, theme, enabledFeatures = [], hasDateFilter = false }: Props) {
   const { kpis, revenueTrend, topTreatments, topDoctors } = data;
 
   const accentGradient = `linear-gradient(135deg, ${theme.accent} 0%, #f59e0b 100%)`;
@@ -21,9 +21,9 @@ export default function ExecutiveOverview({ data, theme, enabledFeatures = [] }:
         <KpiCard
           variant="colored" gradient={theme.gradient}
           icon={<DollarSign size={20} className="text-white" />}
-          label="Revenue Today"
+          label={hasDateFilter ? 'Period Revenue' : 'Revenue Today'}
           value={fmt(kpis.revenueToday)}
-          change={calcPct(kpis.revenueToday, kpis.prevMonthRevenue / 30)}
+          change={hasDateFilter ? undefined : calcPct(kpis.revenueToday, kpis.prevMonthRevenue / 30)}
           animClass="fade-in fade-in-d1"
         />
         <KpiCard
