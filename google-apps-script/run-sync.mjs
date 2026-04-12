@@ -164,10 +164,11 @@ function readVisits(rows, incremental, today) {
       sales_name:     s(r['Sales_name']),
       price:          price(r['ยอดรวม'] || r['ราคา']),
       treatment_name: String(r['Treatment_Name'] || '').trim(),
-      doctor:         s(r['ชื่อแพทย์ที่ให้บริการ']),
+      doctor:         s(r['ชื่อแพทย์ที่ให้บริการ'] || r['ชื่อแพทย์'] || r['Doctor']),
       payment_method: s(r['Payment_Method']) || 'โอน',
       name:           s(r['ชื่อ']),
       phone:          s(r['เบอร์โทร']),
+      customer_type:  s(r['Customer_Type'])?.toLowerCase() === 'new' ? 'new' : 'returning',
       timestamp:      parseThaiDate(r['Timestamp']),
     }));
 }
@@ -182,7 +183,7 @@ function readVisits(rows, incremental, today) {
 function readAppointments(rows, incremental, today) {
   return rows
     .filter(r => {
-      const apptDate = r['วันที่นัดหมาย (Appointment_Date)'];
+      const apptDate = r['วันที่นัดหมาย (Appointment_Date)'] || r['วันที่นัดหมาย'];
       if (!apptDate || !String(apptDate).trim()) return false;
       if (incremental) return matchDate(r['Timestamp'], today);
       return true;
@@ -191,14 +192,14 @@ function readAppointments(rows, incremental, today) {
       hn:            String(r['HN'] || '').trim(),
       sales_name:    s(r['Sales_name']),
       customer_type: s(r['Customer_Type']),
-      appt_date:     parseThaiDate(r['วันที่นัดหมาย (Appointment_Date)']),
-      appt_time:     s(r['เวลานัดหมาย (Appointment_Time)']),
+      appt_date:     parseThaiDate(r['วันที่นัดหมาย (Appointment_Date)'] || r['วันที่นัดหมาย']),
+      appt_time:     s(r['เวลานัดหมาย (Appointment_Time)'] || r['เวลานัดหมาย']),
       name:          s(r['ชื่อ']),
       phone:         s(r['เบอร์โทร']),
       appt_treatment:s(r['หัตถการที่นัด']),
       note:          s(r['Note']),
       follow_result: s(r['ผลการติดตาม']),
-      follow_status: s(r['สถานะติดตาม']),
+      follow_status: s(r['สถานะติดตาม'] || r['สถานะการติดตาม']),
     }));
 }
 

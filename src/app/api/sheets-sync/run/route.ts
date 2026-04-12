@@ -47,6 +47,24 @@ function parseThaiDate(v: any): string | null {
   return null;
 }
 
+// วันนี้ในรูปแบบ D/M/YYYY (ตรงกับ Google Sheets Thai locale) เช่น 12/4/2026
+function todayThai(): string {
+  const d = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
+  return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
+}
+
+// เทียบ timestamp ว่าตรงวันที่ที่ต้องการ
+function matchDate(tsStr: string | undefined, targetThai: string): boolean {
+  if (!tsStr) return false;
+  const s2 = String(tsStr).trim();
+  const m = s2.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) return `${m[1]}/${m[2]}/${m[3]}` === targetThai;
+  const iso = s2.slice(0, 10);
+  const [y, mo, day] = iso.split('-');
+  if (y && mo && day) return `${parseInt(day)}/${parseInt(mo)}/${y}` === targetThai;
+  return false;
+}
+
 // ─── Fetch CSV from Google Sheets ────────────────────────────
 async function fetchCSV(gid: string): Promise<string> {
   const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${gid}`;
@@ -56,8 +74,14 @@ async function fetchCSV(gid: string): Promise<string> {
 }
 
 // ─── Sync functions ───────────────────────────────────────────
-async function syncPatients(patRows: Record<string, string>[]) {
+async function syncPatients(patRows: Record<string, string>[], filterToday?: string) {
   const patients = patRows
+    .filter(r => {
+      const hn = String(r['HN'] || '').trim();
+      if (!hn || /^\d{1,2}:\d{2}/.test(hn)) return false;
+      if (filterToday) return matchDate(r['Timestamp'], filterToday);
+      return true;
+    })
     .map(r => ({
       hn:                String(r['HN'] || '').trim(),
       full_name:         String(r['ชื่อ-นามสกุล'] || '').trim(),
@@ -69,7 +93,7 @@ async function syncPatients(patRows: Record<string, string>[]) {
       sales_name:        s(r['Sales_Name']),
       consent_image_url: s(r['Consent (URL)']),
     }))
-    .filter(p => p.hn && !/^\d{1,2}:\d{2}/.test(p.hn));
+    .filter(p => p.hn);
 
   let updated = 0;
   for (let b = 0; b < patients.length; b += BATCH) {
@@ -81,8 +105,12 @@ async function syncPatients(patRows: Record<string, string>[]) {
   return { total: patients.length, updated };
 }
 
-async function syncVisits(visRows: Record<string, string>[]) {
-  const visits = visRows.filter(r => price(r['ยอดรวม'] || r['ราคา']) > 0);
+async function syncVisits(visRows: Record<string, string>[], filterToday?: string) {
+  const visits = visRows.filter(r => {
+    if (price(r['ยอดรวม'] || r['ราคา']) <= 0) return false;
+    if (filterToday) return matchDate(r['Timestamp'], filterToday);
+    return true;
+  });
   let added = 0, updated = 0;
 
   for (const r of visits) {
@@ -93,24 +121,28 @@ async function syncVisits(visRows: Record<string, string>[]) {
     const { data: patient } = await supabaseAdmin
       .from('patients').select('id').eq('clinic_id', CLINIC_ID).eq('hn', hn).maybeSingle();
 
+    const visitDate = parseThaiDate(r['Timestamp']);
     const row: any = {
       clinic_id:      CLINIC_ID,
       patient_id:     patient?.id || null,
       hn,
       treatment_name: treatmentName,
       price:          p,
-      doctor:         s(r['ชื่อแพทย์ที่ให้บริการ']),
+      doctor:         s(r['ชื่อแพทย์ที่ให้บริการ'] || r['ชื่อแพทย์'] || r['Doctor']),
       sales_name:     s(r['Sales_name']),
       payment_method: s(r['Payment_Method']) || 'โอน',
       name:           s(r['ชื่อ']),
       phone:          s(r['เบอร์โทร']),
-      customer_type:  'returning',
+      customer_type:  s(r['Customer_Type'])?.toLowerCase() === 'new' ? 'new' : 'returning',
+      visit_date:     visitDate,
     };
 
-    const { data: existing } = await supabaseAdmin
+    let existingQuery = supabaseAdmin
       .from('visits').select('id')
       .eq('clinic_id', CLINIC_ID).eq('hn', hn)
-      .eq('treatment_name', treatmentName).eq('price', p).limit(1);
+      .eq('treatment_name', treatmentName).eq('price', p);
+    if (visitDate) existingQuery = existingQuery.eq('visit_date', visitDate);
+    const { data: existing } = await existingQuery.limit(1);
 
     if (existing && existing.length > 0) {
       await supabaseAdmin.from('visits').update(row).eq('id', existing[0].id);
@@ -123,18 +155,20 @@ async function syncVisits(visRows: Record<string, string>[]) {
   return { total: visits.length, added, updated };
 }
 
-async function syncAppointments(visRows: Record<string, string>[]) {
+async function syncAppointments(visRows: Record<string, string>[], filterToday?: string) {
   const appts = visRows.filter(r => {
-    const d = r['วันที่นัดหมาย (Appointment_Date)'];
-    return d && String(d).trim();
+    const d = r['วันที่นัดหมาย (Appointment_Date)'] || r['วันที่นัดหมาย'];
+    if (!d || !String(d).trim()) return false;
+    if (filterToday) return matchDate(r['Timestamp'], filterToday);
+    return true;
   });
   let added = 0, updated = 0;
 
   for (const r of appts) {
     const hn       = String(r['HN'] || '').trim();
-    const apptDate = parseThaiDate(r['วันที่นัดหมาย (Appointment_Date)']);
+    const apptDate = parseThaiDate(r['วันที่นัดหมาย (Appointment_Date)'] || r['วันที่นัดหมาย']);
     if (!apptDate) continue;
-    const apptTime = s(r['เวลานัดหมาย (Appointment_Time)']) || '11:00';
+    const apptTime = s(r['เวลานัดหมาย (Appointment_Time)'] || r['เวลานัดหมาย']) || '11:00';
 
     const { data: patient } = await supabaseAdmin
       .from('patients').select('id').eq('clinic_id', CLINIC_ID).eq('hn', hn).maybeSingle();
@@ -149,10 +183,10 @@ async function syncAppointments(visRows: Record<string, string>[]) {
       status:        s(r['Customer_Type'])?.toLowerCase() === 'new' ? 'new' : 'returning',
       date:          apptDate,
       time:          apptTime,
-      procedure:     s(r['หัตถการที่นัด']),
+      procedure:     s(r['หัตถการที่นัด'] || r['หัตถการที่นัด (Procedure)']),
       note:          s(r['Note']),
       follow_result: s(r['ผลการติดตาม']),
-      follow_status: s(r['สถานะติดตาม']),
+      follow_status: s(r['สถานะติดตาม'] || r['สถานะการติดตาม']),
     };
 
     const { data: existing } = await supabaseAdmin
@@ -173,17 +207,21 @@ async function syncAppointments(visRows: Record<string, string>[]) {
 // ─── Route ────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
+    const body = await req.json().catch(() => ({}));
+    const mode = body.mode ?? 'full';   // 'today' | 'full'
+    const filterToday = mode === 'today' ? todayThai() : undefined;
+
     const [patCSV, visCSV] = await Promise.all([fetchCSV(GID_PAT), fetchCSV(GID_VISIT)]);
     const patRows = parseCSV(patCSV);
     const visRows = parseCSV(visCSV);
 
     const [patients, visits, appointments] = await Promise.all([
-      syncPatients(patRows),
-      syncVisits(visRows),
-      syncAppointments(visRows),
+      syncPatients(patRows, filterToday),
+      syncVisits(visRows, filterToday),
+      syncAppointments(visRows, filterToday),
     ]);
 
-    return NextResponse.json({ success: true, stats: { patients, visits, appointments } });
+    return NextResponse.json({ success: true, mode, filterToday, stats: { patients, visits, appointments } });
   } catch (err: any) {
     console.error('sheets-sync/run error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });

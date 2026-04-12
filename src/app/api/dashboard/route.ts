@@ -111,7 +111,7 @@ export async function GET(req: NextRequest) {
       currentMonthCompleted++; // ทุก visit ที่บันทึกถือว่า completed
     }
 
-    const dr = v.doctor ?? 'Unknown';
+    const dr = v.doctor || 'ไม่ระบุแพทย์';
     if (!doctorMap[dr]) doctorMap[dr] = { revenue: 0, visits: 0 };
     doctorMap[dr].revenue += revenue; doctorMap[dr].visits++;
 
@@ -196,7 +196,7 @@ export async function GET(req: NextRequest) {
     })(),
     topTreatments: Object.entries(treatmentMap).sort(([, a], [, b]) => b - a).slice(0, 10).map(([name, revenue]) => ({ name, revenue })),
     appointmentsByStatus: [{ status: 'Completed', count: visits.length }],
-    topDoctors: Object.entries(doctorMap).filter(([n]) => n !== 'Unknown' && n !== '')
+    topDoctors: Object.entries(doctorMap).filter(([n]) => n !== '')
       .sort(([, a], [, b]) => b.revenue - a.revenue).slice(0, 5).map(([name, d]) => ({ name, ...d })),
     revenueByCategoryMonth: Object.keys(catMonthMap).sort()
       .map(k => ({ month: toLabel(k), Botox: 0, Filler: 0, SkinQuality: 0, EBD: 0, Surgery: 0, Other: 0, ...catMonthMap[k] })),

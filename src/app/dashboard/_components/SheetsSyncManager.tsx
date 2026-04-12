@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Sheet, RefreshCw, CheckCircle2, XCircle, Users, ClipboardList, CalendarDays } from 'lucide-react';
+import { Sheet, RefreshCw, CheckCircle2, XCircle, Users, ClipboardList, CalendarDays, Zap, Database } from 'lucide-react';
+
+type SyncMode = 'today' | 'full';
 
 type SyncStats = {
   patients:     { total: number; updated: number };
@@ -10,34 +12,42 @@ type SyncStats = {
 };
 
 export default function SheetsSyncManager() {
-  const [loading, setLoading] = useState(false);
-  const [stats, setStats]     = useState<SyncStats | null>(null);
-  const [error, setError]     = useState<string | null>(null);
+  const [loading, setLoading]   = useState<SyncMode | null>(null);
+  const [stats, setStats]       = useState<SyncStats | null>(null);
+  const [lastMode, setLastMode] = useState<SyncMode | null>(null);
+  const [error, setError]       = useState<string | null>(null);
   const [syncedAt, setSyncedAt] = useState<string | null>(null);
 
-  async function handleSync() {
-    setLoading(true);
+  async function handleSync(mode: SyncMode) {
+    setLoading(mode);
     setStats(null);
     setError(null);
     try {
-      const res  = await fetch('/api/sheets-sync/run', { method: 'POST' });
+      const res  = await fetch('/api/sheets-sync/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode }),
+      });
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.error || 'Sync failed');
       setStats(data.stats);
+      setLastMode(mode);
       setSyncedAt(new Date().toLocaleTimeString('th-TH'));
     } catch (e: any) {
       setError(e.message);
     } finally {
-      setLoading(false);
+      setLoading(null);
     }
   }
+
+  const isLoading = loading !== null;
 
   return (
     <div className="max-w-lg space-y-4">
 
       {/* Main card */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <div className="flex items-center gap-3 mb-6">
+        <div className="flex items-center gap-3 mb-5">
           <div className="w-11 h-11 rounded-xl bg-emerald-100 flex items-center justify-center">
             <Sheet size={22} className="text-emerald-600" />
           </div>
@@ -47,20 +57,54 @@ export default function SheetsSyncManager() {
           </div>
         </div>
 
-        <button
-          onClick={handleSync}
-          disabled={loading}
-          className="w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-60"
-          style={{ backgroundColor: '#059669' }}
-        >
-          {loading
-            ? <><RefreshCw size={16} className="animate-spin" /> กำลังดึงข้อมูล...</>
-            : <><RefreshCw size={16} /> ดึงข้อมูลจาก Google Sheets</>
-          }
-        </button>
+        {/* 2 Buttons */}
+        <div className="grid grid-cols-2 gap-3">
+          {/* Today */}
+          <button
+            onClick={() => handleSync('today')}
+            disabled={isLoading}
+            className="flex flex-col items-center gap-1.5 py-3.5 px-3 rounded-xl border-2 border-emerald-500 bg-emerald-50 text-emerald-700 font-semibold text-sm transition-all hover:bg-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading === 'today'
+              ? <RefreshCw size={18} className="animate-spin" />
+              : <Zap size={18} />
+            }
+            <span>{loading === 'today' ? 'กำลังดึง...' : 'Sync วันนี้'}</span>
+            <span className="text-[11px] font-normal text-emerald-600 text-center leading-tight">
+              timestamp = วันนี้{'\n'}เร็ว &lt;3 วิ
+            </span>
+          </button>
 
-        {syncedAt && !loading && (
-          <p className="text-center text-xs text-slate-400 mt-2">อัปเดตล่าสุด {syncedAt}</p>
+          {/* Full */}
+          <button
+            onClick={() => handleSync('full')}
+            disabled={isLoading}
+            className="flex flex-col items-center gap-1.5 py-3.5 px-3 rounded-xl border-2 border-slate-300 bg-slate-50 text-slate-700 font-semibold text-sm transition-all hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading === 'full'
+              ? <RefreshCw size={18} className="animate-spin" />
+              : <Database size={18} />
+            }
+            <span>{loading === 'full' ? 'กำลังดึง...' : 'Sync ทั้งหมด'}</span>
+            <span className="text-[11px] font-normal text-slate-500 text-center leading-tight">
+              ทุก record{'\n'}~15–30 วิ
+            </span>
+          </button>
+        </div>
+
+        {syncedAt && !isLoading && (
+          <p className="text-center text-xs text-slate-400 mt-3">
+            อัปเดตล่าสุด {syncedAt}
+            {lastMode && (
+              <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium ${
+                lastMode === 'today'
+                  ? 'bg-emerald-100 text-emerald-700'
+                  : 'bg-slate-100 text-slate-600'
+              }`}>
+                {lastMode === 'today' ? 'วันนี้' : 'ทั้งหมด'}
+              </span>
+            )}
+          </p>
         )}
       </div>
 
