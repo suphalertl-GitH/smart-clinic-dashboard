@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
   const patients = (allPatients ?? []).filter(p => inRange(p.created_at));
 
   const nowThai = getThaiNow();
-  const todayStr = nowThai.toISOString().split('T')[0];
+  const todayStr = `${nowThai.getFullYear()}-${String(nowThai.getMonth() + 1).padStart(2, '0')}-${String(nowThai.getDate()).padStart(2, '0')}`;
   const currentMonthKey = getMonthKey(nowThai);
   const prevDate = new Date(nowThai); prevDate.setMonth(prevDate.getMonth() - 1);
   const prevMonthKey = getMonthKey(prevDate);
@@ -86,12 +86,14 @@ export async function GET(req: NextRequest) {
   let revenuePeriod = 0;
   let currentMonthVisits = 0;
   let currentMonthCompleted = 0;
+  let totalNew = 0;
+  let totalRet = 0;
 
   for (const v of visits) {
     const revenue = parseFloat(String(v.price)) || 0;
     const createdThai = new Date(new Date(v.created_at).toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
     const mk = getMonthKey(createdThai);
-    const vDateStr = createdThai.toISOString().split('T')[0];
+    const vDateStr = toBkkDate(v.created_at);
 
     revenuePeriod += revenue;
     if (vDateStr === todayStr) revenueToday += revenue;
@@ -99,8 +101,8 @@ export async function GET(req: NextRequest) {
     dailyRevenueMap[vDateStr] = (dailyRevenueMap[vDateStr] || 0) + revenue;
 
     const ct = v.customer_type ?? '';
-    if (ct === 'new') monthlyNew[mk] = (monthlyNew[mk] || 0) + 1;
-    else monthlyRet[mk] = (monthlyRet[mk] || 0) + 1;
+    if (ct === 'new') { monthlyNew[mk] = (monthlyNew[mk] || 0) + 1; totalNew++; }
+    else { monthlyRet[mk] = (monthlyRet[mk] || 0) + 1; totalRet++; }
     customerTypeMap[ct] = (customerTypeMap[ct] || 0) + 1;
 
     const tn = v.treatment_name ?? 'Unknown';
@@ -111,9 +113,11 @@ export async function GET(req: NextRequest) {
       currentMonthCompleted++; // ทุก visit ที่บันทึกถือว่า completed
     }
 
-    const dr = v.doctor || 'ไม่ระบุแพทย์';
-    if (!doctorMap[dr]) doctorMap[dr] = { revenue: 0, visits: 0 };
-    doctorMap[dr].revenue += revenue; doctorMap[dr].visits++;
+    const dr = v.doctor;
+    if (dr) {
+      if (!doctorMap[dr]) doctorMap[dr] = { revenue: 0, visits: 0 };
+      doctorMap[dr].revenue += revenue; doctorMap[dr].visits++;
+    }
 
     const cat = getCategory(tn);
     if (!catMonthMap[mk]) catMonthMap[mk] = { Botox: 0, Filler: 0, SkinQuality: 0, EBD: 0, Surgery: 0, Other: 0 };
@@ -166,9 +170,9 @@ export async function GET(req: NextRequest) {
       revenueToday: (startDate || endDate) ? revenuePeriod : revenueToday,
       monthlyRevenue,
       prevMonthRevenue,
-      newCustomers: monthlyNew[currentMonthKey] || 0,
+      newCustomers: (startDate || endDate) ? totalNew : (monthlyNew[currentMonthKey] || 0),
       prevNewCustomers: monthlyNew[prevMonthKey] || 0,
-      returning: monthlyRet[currentMonthKey] || 0,
+      returning: (startDate || endDate) ? totalRet : (monthlyRet[currentMonthKey] || 0),
       prevReturning: monthlyRet[prevMonthKey] || 0,
       conversionRate,
     },
@@ -196,7 +200,7 @@ export async function GET(req: NextRequest) {
     })(),
     topTreatments: Object.entries(treatmentMap).sort(([, a], [, b]) => b - a).slice(0, 10).map(([name, revenue]) => ({ name, revenue })),
     appointmentsByStatus: [{ status: 'Completed', count: visits.length }],
-    topDoctors: Object.entries(doctorMap).filter(([n]) => n !== '')
+    topDoctors: Object.entries(doctorMap)
       .sort(([, a], [, b]) => b.revenue - a.revenue).slice(0, 5).map(([name, d]) => ({ name, ...d })),
     revenueByCategoryMonth: Object.keys(catMonthMap).sort()
       .map(k => ({ month: toLabel(k), Botox: 0, Filler: 0, SkinQuality: 0, EBD: 0, Surgery: 0, Other: 0, ...catMonthMap[k] })),

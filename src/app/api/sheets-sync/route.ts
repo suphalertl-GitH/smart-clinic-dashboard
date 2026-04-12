@@ -167,29 +167,54 @@ async function upsertVisit(v: any): Promise<'added' | 'updated' | 'skipped'> {
     if (!isNaN(d.getTime())) created_at = d.toISOString();
   }
 
+  // customer_type: ใช้ค่าจากชีตเท่านั้น ไม่ default เป็น 'returning'
+  // เพื่อไม่ให้ overwrite ค่าเดิมที่ถูกต้องตอน re-sync
+  const incomingCustomerType = v.customer_type?.trim() || null;
+
   const row: any = {
     clinic_id: CLINIC_ID,
     patient_id: patient?.id || null,
     hn,
     treatment_name: v.treatment_name?.trim() || v.treatment?.trim() || '',
-    price: parseFloat(String(v.price ?? 0).replace(/,/g, '')) || 0,
+    price,
     doctor: v.doctor?.trim() || null,
     sales_name: v.sales_name?.trim() || null,
-    customer_type: v.customer_type?.trim() || 'returning',
+    customer_type: incomingCustomerType ?? 'returning',
     payment_method: v.payment_method?.trim() || v.payment?.trim() || 'โอน',
     appt_date: v.appt_date || null,
     appt_time: v.appt_time || null,
   };
   if (created_at) row.created_at = created_at;
 
-  // เช็คซ้ำ: same hn + treatment + price (ป้องกัน duplicate)
-  const { data: existing } = await supabaseAdmin
-    .from('visits').select('id').eq('clinic_id', CLINIC_ID)
-    .eq('hn', hn).eq('treatment_name', row.treatment_name)
-    .eq('price', row.price).limit(1);
+  // Dedup: hn + treatment + price + วันที่ (Bangkok)
+  // ป้องกันการ collapse visit ต่างวันของผู้ป่วยคนเดียวกัน
+  let dedupDateStart: string | undefined;
+  let dedupDateEnd: string | undefined;
+  if (created_at) {
+    const bkk = new Date(new Date(created_at).toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
+    const dateStr = `${bkk.getFullYear()}-${String(bkk.getMonth() + 1).padStart(2, '0')}-${String(bkk.getDate()).padStart(2, '0')}`;
+    // แปลงกลับเป็น UTC range ที่ครอบคลุม 1 วันใน Bangkok
+    dedupDateStart = new Date(dateStr + 'T00:00:00+07:00').toISOString();
+    dedupDateEnd   = new Date(dateStr + 'T23:59:59+07:00').toISOString();
+  }
+
+  let existingQuery = supabaseAdmin
+    .from('visits').select('id, customer_type').eq('clinic_id', CLINIC_ID)
+    .eq('hn', hn).eq('treatment_name', row.treatment_name).eq('price', row.price);
+  if (dedupDateStart && dedupDateEnd) {
+    existingQuery = existingQuery.gte('created_at', dedupDateStart).lte('created_at', dedupDateEnd);
+  }
+  const { data: existing } = await existingQuery.limit(1);
 
   if (existing && existing.length > 0) {
-    await supabaseAdmin.from('visits').update(row).eq('id', existing[0].id);
+    // ไม่ overwrite created_at (รักษาวันที่เดิม)
+    // ไม่ overwrite customer_type ด้วยค่า default ถ้าของเดิมถูกตั้งไว้แล้ว
+    const { created_at: _omit, customer_type: _ct, ...updateFields } = row;
+    const existingCustomerType = existing[0].customer_type;
+    const finalCustomerType = incomingCustomerType ?? existingCustomerType ?? 'returning';
+    await supabaseAdmin.from('visits')
+      .update({ ...updateFields, customer_type: finalCustomerType })
+      .eq('id', existing[0].id);
     return 'updated';
   } else {
     await supabaseAdmin.from('visits').insert(row);

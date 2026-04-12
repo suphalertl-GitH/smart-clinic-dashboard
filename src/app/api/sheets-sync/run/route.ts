@@ -37,6 +37,13 @@ function splitLine(line: string): string[] {
 
 const s = (v: any) => { const t = String(v ?? '').trim(); return t || null; };
 const price = (v: any) => parseFloat(String(v || '0').replace(/,/g, '')) || 0;
+const normalizePayment = (v: string | null): string => {
+  if (!v) return 'โอน';
+  const l = v.toLowerCase();
+  if (l.includes('เงินสด') || l.includes('cash')) return 'เงินสด';
+  if (l.includes('เครดิต') || l.includes('credit') || l.includes('card')) return 'เครดิต';
+  return 'โอน';
+};
 
 function parseThaiDate(v: any): string | null {
   if (!v) return null;
@@ -122,6 +129,16 @@ async function syncVisits(visRows: Record<string, string>[], filterToday?: strin
       .from('patients').select('id').eq('clinic_id', CLINIC_ID).eq('hn', hn).maybeSingle();
 
     const visitDate = parseThaiDate(r['Timestamp']);
+
+    // set created_at จากวันที่จริงในชีต (noon Bangkok) เพื่อให้ dashboard groupby เดือนถูกต้อง
+    // fallback เป็น now() เสมอ เพื่อไม่ให้ created_at เป็น null แล้วทำให้ dashboard แสดง ฿0
+    const createdAt = visitDate
+      ? new Date(visitDate + 'T12:00:00+07:00').toISOString()
+      : new Date().toISOString();
+
+    // customer_type: เก็บเฉพาะที่ชีตระบุ 'new' ไว้ชัดเจน ที่เหลือเป็น null ก่อน (resolve ตอน upsert)
+    const incomingCustomerType = s(r['Customer_Type'])?.toLowerCase() === 'new' ? 'new' : null;
+
     const row: any = {
       clinic_id:      CLINIC_ID,
       patient_id:     patient?.id || null,
@@ -130,39 +147,49 @@ async function syncVisits(visRows: Record<string, string>[], filterToday?: strin
       price:          p,
       doctor:         s(r['ชื่อแพทย์ที่ให้บริการ'] || r['ชื่อแพทย์'] || r['Doctor']),
       sales_name:     s(r['Sales_name']),
-      payment_method: s(r['Payment_Method']) || 'โอน',
-      name:           s(r['ชื่อ']),
-      phone:          s(r['เบอร์โทร']),
-      customer_type:  s(r['Customer_Type'])?.toLowerCase() === 'new' ? 'new' : 'returning',
+      payment_method: normalizePayment(s(r['Payment_Method'])),
+      customer_type:  incomingCustomerType ?? 'returning',
       visit_date:     visitDate,
+      created_at:     createdAt, // always set — never leave as null
     };
 
+    // dedup range สำหรับ created_at (1 วันใน Bangkok = UTC range)
+    const dedupStart = visitDate ? new Date(visitDate + 'T00:00:00+07:00').toISOString() : undefined;
+    const dedupEnd   = visitDate ? new Date(visitDate + 'T23:59:59+07:00').toISOString() : undefined;
+
     if (filterToday && visitDate) {
-      // mode=today: strict dedup วันนี้เท่านั้น
-      const { data: existing } = await supabaseAdmin.from('visits').select('id')
-        .eq('clinic_id', CLINIC_ID).eq('hn', hn)
-        .eq('treatment_name', treatmentName).eq('price', p)
-        .eq('visit_date', visitDate).limit(1);
-      if (existing && existing.length > 0) {
-        await supabaseAdmin.from('visits').update(row).eq('id', existing[0].id);
-        updated++;
-      } else {
-        await supabaseAdmin.from('visits').insert(row);
-        added++;
-      }
-    } else {
-      // mode=full: UPDATE ทุก record ที่ match (รวม null-doctor เก่า), ถ้าไม่มีเลยค่อย INSERT
-      const { data: allMatch } = await supabaseAdmin.from('visits').select('id')
+      // mode=today: strict dedup ด้วย hn + treatment + price + วันที่
+      let q = supabaseAdmin.from('visits').select('id, customer_type')
         .eq('clinic_id', CLINIC_ID).eq('hn', hn)
         .eq('treatment_name', treatmentName).eq('price', p);
-      if (allMatch && allMatch.length > 0) {
-        await supabaseAdmin.from('visits').update(row)
-          .eq('clinic_id', CLINIC_ID).eq('hn', hn)
-          .eq('treatment_name', treatmentName).eq('price', p);
+      if (dedupStart && dedupEnd) q = q.gte('created_at', dedupStart).lte('created_at', dedupEnd);
+      const { data: existing } = await q.limit(1);
+      if (existing && existing.length > 0) {
+        const { created_at: _c, customer_type: _ct, ...updateFields } = row;
+        const finalType = incomingCustomerType ?? existing[0].customer_type ?? 'returning';
+        await supabaseAdmin.from('visits').update({ ...updateFields, customer_type: finalType }).eq('id', existing[0].id);
         updated++;
       } else {
-        await supabaseAdmin.from('visits').insert(row);
-        added++;
+        const { error } = await supabaseAdmin.from('visits').insert(row);
+        if (error) console.error('visit insert error:', error.message, { hn, treatmentName });
+        else added++;
+      }
+    } else {
+      // mode=full: dedup ด้วย hn + treatment + price + วันที่
+      let q = supabaseAdmin.from('visits').select('id, customer_type')
+        .eq('clinic_id', CLINIC_ID).eq('hn', hn)
+        .eq('treatment_name', treatmentName).eq('price', p);
+      if (dedupStart && dedupEnd) q = q.gte('created_at', dedupStart).lte('created_at', dedupEnd);
+      const { data: existing } = await q.limit(1);
+      if (existing && existing.length > 0) {
+        const { created_at: _c, customer_type: _ct, ...updateFields } = row;
+        const finalType = incomingCustomerType ?? existing[0].customer_type ?? 'returning';
+        await supabaseAdmin.from('visits').update({ ...updateFields, customer_type: finalType }).eq('id', existing[0].id);
+        updated++;
+      } else {
+        const { error } = await supabaseAdmin.from('visits').insert(row);
+        if (error) console.error('visit insert error:', error.message, { hn, treatmentName });
+        else added++;
       }
     }
   }

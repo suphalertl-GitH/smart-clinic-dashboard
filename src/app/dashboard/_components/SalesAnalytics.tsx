@@ -121,10 +121,7 @@ export default function SalesAnalytics({ data, theme }: Props) {
               <div key={cat} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">{cat}</p>
                 <p className="text-xl font-heading font-black text-slate-800">฿{avg.toLocaleString()}</p>
-                <div className="flex items-center gap-1 mt-1">
-                  <TrendingUp size={12} style={{ color: SAGE }} />
-                  <span className="text-xs font-semibold" style={{ color: SAGE }}>+2.5% เดือนนี้</span>
-                </div>
+                <p className="text-xs text-slate-400 mt-1">avg/visit</p>
               </div>
             ))}
           </div>
