@@ -44,13 +44,21 @@ export async function GET(req: NextRequest) {
   try {
     const now = getThaiNow();
 
-    // ── Fetch raw data ──────────────────────────────────────
-    const [{ data: visits }, { data: patients }, { data: settings }] = await Promise.all([
-      supabaseAdmin.from('visits').select('hn, price, treatment_name, created_at').eq('clinic_id', CLINIC_ID).limit(5000),
-      // จำกัด patients เฉพาะที่มีข้อมูล loyalty (คนไข้ที่ active จริงๆ)
-      supabaseAdmin.from('patients').select('hn, full_name, line_user_id, loyalty_tier, lifetime_spending').eq('clinic_id', CLINIC_ID).limit(1000),
+    // ── Fetch raw data (visits + appointments only, no patients query) ──
+    const [{ data: visits }, { data: appointments }, { data: settings }] = await Promise.all([
+      supabaseAdmin.from('visits').select('hn, name, price, treatment_name, created_at').eq('clinic_id', CLINIC_ID).limit(5000),
+      supabaseAdmin.from('appointments').select('hn, name').eq('clinic_id', CLINIC_ID).limit(2000),
       supabaseAdmin.from('settings').select('treatment_cycles').eq('clinic_id', CLINIC_ID).single(),
     ]);
+
+    // hn → name lookup: visits ก่อน ถ้าไม่มีให้ใช้ appointments
+    const hnName: Record<string, string> = {};
+    for (const a of appointments ?? []) {
+      if (a.hn && a.name) hnName[a.hn] = a.name;
+    }
+    for (const v of visits ?? []) {
+      if (v.hn && v.name) hnName[v.hn] = v.name; // visits ทับถ้ามี
+    }
 
     const treatmentCycles: { treatment: string; days: number }[] = settings?.treatment_cycles ?? [
       { treatment: 'Botox', days: 120 },
@@ -118,19 +126,25 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // derive tier จาก visit count
+    function visitTier(count: number) {
+      if (count >= 11) return 'platinum';
+      if (count >= 6)  return 'gold';
+      if (count >= 3)  return 'silver';
+      return 'bronze';
+    }
+
     const churnRisk: { hn: string; name: string; lastVisit: string; daysSince: number; visits: number; tier: string; riskLevel: 'high' | 'medium' }[] = [];
-    for (const p of patients ?? []) {
-      const lv = lastVisitMap[p.hn];
-      if (!lv) continue;
+    for (const [hn, lv] of Object.entries(lastVisitMap)) {
       const daysSince = Math.floor((now.getTime() - lv.date.getTime()) / (1000 * 60 * 60 * 24));
       if (daysSince >= 60 && daysSince <= 365) {
         churnRisk.push({
-          hn: p.hn,
-          name: p.full_name,
+          hn,
+          name: hnName[hn] || hn,
           lastVisit: lv.date.toLocaleDateString('th-TH'),
           daysSince,
           visits: lv.count,
-          tier: p.loyalty_tier ?? 'bronze',
+          tier: visitTier(lv.count),
           riskLevel: daysSince >= 120 ? 'high' : 'medium',
         });
       }
@@ -160,15 +174,13 @@ export async function GET(req: NextRequest) {
         dueDate.setDate(dueDate.getDate() + cycle.days);
         const daysUntil = Math.floor((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
         if (daysUntil >= -7 && daysUntil <= 30) {
-          const patient = (patients ?? []).find(p => p.hn === hn);
-          if (!patient) continue;
           dueSoon.push({
             hn,
-            name: patient.full_name,
+            name: hnName[hn] || hn,
             treatment: cycle.treatment,
             dueDate: dueDate.toLocaleDateString('th-TH'),
             daysUntil,
-            lineUserId: patient.line_user_id ?? null,
+            lineUserId: null, // ไม่ดึง patients แล้ว
           });
         }
       }
@@ -220,7 +232,7 @@ export async function GET(req: NextRequest) {
 - คนไข้เสี่ยง churn: ${churnStats.total} คน (high: ${churnStats.high}, medium: ${churnStats.medium})
 - ใกล้ถึงรอบรักษา (30 วัน): ${dueSoon.length} คน
 - Retention rate: ${retentionRate}%
-- จำนวนคนไข้ทั้งหมด: ${(patients ?? []).length} คน
+- จำนวน HN ที่มี visit: ${Object.keys(lastVisitMap).length} คน
 
 ตอบ JSON เท่านั้น:
 {"summary":"สรุป 2 ประโยค","opportunities":["o1","o2","o3"],"risks":["r1","r2"],"actions":["a1","a2","a3"]}`;
@@ -253,7 +265,7 @@ export async function GET(req: NextRequest) {
       catTrend: Object.keys(catMonthMap).sort().map(k => ({
         month: toMonthLabel(k), ...catMonthMap[k],
       })),
-      totalPatients: (patients ?? []).length,
+      totalPatients: Object.keys(lastVisitMap).length,
       aiNarrative,
     });
   } catch (err: any) {
