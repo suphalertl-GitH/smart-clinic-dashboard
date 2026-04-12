@@ -6,16 +6,18 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import { Trophy, TrendingUp, TrendingDown } from 'lucide-react';
-import { fmt, CAT_COLORS, CHART_COLORS } from './KpiCard';
+import { fmt, CAT_COLORS, themeChartColors } from './KpiCard';
 
-const PRIMARY   = '#0f4c5c';
-const ACCENT    = '#e36414';
-const SAGE      = '#5FAD82';
-const GOLD      = '#D97706';
+const SAGE = '#5FAD82';
+const GOLD = '#D97706';
 
-type Props = { data: any };
+type Theme = { bg: string; bgDark: string; accent: string; gradient: string };
+type Props = { data: any; theme: Theme };
 
-export default function SalesAnalytics({ data }: Props) {
+export default function SalesAnalytics({ data, theme }: Props) {
+  const PRIMARY = theme.bg;
+  const ACCENT  = theme.accent;
+  const COLORS  = themeChartColors(theme);
   const { revenueTrendMonthly = [], revenueShareByCategory, topDoctors, topServices, salesRanking } = data;
   const [targets, setTargets] = useState<Record<string, number>>({});
 
@@ -48,7 +50,7 @@ export default function SalesAnalytics({ data }: Props) {
           <ResponsiveContainer width="100%" height={240}>
             <AreaChart data={revenueTrendMonthly}>
               <defs>
-                <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+                <linearGradient id="areaGradSales" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%"  stopColor={PRIMARY} stopOpacity={0.2} />
                   <stop offset="95%" stopColor={PRIMARY} stopOpacity={0} />
                 </linearGradient>
@@ -61,7 +63,7 @@ export default function SalesAnalytics({ data }: Props) {
                 formatter={(v) => [fmt(Number(v ?? 0)), 'Revenue']}
               />
               <Area type="monotone" dataKey="revenue" stroke={PRIMARY} strokeWidth={2.5}
-                fill="url(#areaGrad)"
+                fill="url(#areaGradSales)"
                 dot={{ r: 4, fill: PRIMARY, stroke: '#fff', strokeWidth: 2 }}
                 activeDot={{ r: 6, fill: PRIMARY }}
               />
@@ -77,7 +79,7 @@ export default function SalesAnalytics({ data }: Props) {
               <Pie data={revenueShareByCategory} cx="50%" cy="50%"
                 innerRadius={60} outerRadius={90} dataKey="value" paddingAngle={3}>
                 {revenueShareByCategory.map((e: any, i: number) => (
-                  <Cell key={i} fill={CAT_COLORS[e.name] || CHART_COLORS[i % CHART_COLORS.length]} />
+                  <Cell key={i} fill={CAT_COLORS[e.name] || COLORS[i % COLORS.length]} />
                 ))}
               </Pie>
               <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)', fontSize: 12 }}
@@ -87,7 +89,7 @@ export default function SalesAnalytics({ data }: Props) {
           <div className="flex flex-wrap justify-center gap-x-3 gap-y-1.5 mt-auto">
             {revenueShareByCategory.map((item: any, i: number) => (
               <div key={i} className="flex items-center gap-1 text-xs text-slate-500">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: CAT_COLORS[item.name] || CHART_COLORS[i % CHART_COLORS.length] }} />
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: CAT_COLORS[item.name] || COLORS[i % COLORS.length] }} />
                 {item.name}
               </div>
             ))}
@@ -129,7 +131,7 @@ export default function SalesAnalytics({ data }: Props) {
           {/* Clinic overall avg */}
           {totalSales > 0 && (
             <div className="rounded-2xl p-4 text-white flex items-center justify-between"
-              style={{ background: `linear-gradient(135deg, ${PRIMARY}, #1a6b7a)` }}>
+              style={{ background: theme.gradient }}>
               <div>
                 <p className="text-xs text-white/70 mb-1">ค่าเฉลี่ยรวมทั้งคลินิก</p>
                 <p className="text-2xl font-heading font-black">{fmt(totalSales)}</p>
@@ -165,7 +167,7 @@ export default function SalesAnalytics({ data }: Props) {
             {/* Total Sales Card */}
             <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm flex flex-col justify-center">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3"
-                style={{ background: '#E6F4F4', color: PRIMARY }}>
+                style={{ background: `${PRIMARY}18`, color: PRIMARY }}>
                 <TrendingUp size={20} />
               </div>
               <p className="text-xs text-slate-400 font-medium mb-1">Total Sales</p>

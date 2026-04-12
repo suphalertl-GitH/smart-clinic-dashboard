@@ -1,14 +1,15 @@
 'use client';
 
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { fmt, CHART_COLORS } from './KpiCard';
+import { fmt, themeChartColors } from './KpiCard';
 
-const PRIMARY = '#0f4c5c';
-const SAGE    = '#5FAD82';
+type Theme = { bg: string; bgDark: string; accent: string; gradient: string };
+type Props = { data: any; theme: Theme };
 
-type Props = { data: any };
-
-export default function CustomerInsights({ data }: Props) {
+export default function CustomerInsights({ data, theme }: Props) {
+  const PRIMARY = theme.bg;
+  const SAGE    = theme.accent;
+  const COLORS  = themeChartColors(theme);
   const { newRegistrationsByMonth, customerTypeDistribution, acquisitionSource, visitFrequency, topPatients } = data;
 
   return (
@@ -40,7 +41,7 @@ export default function CustomerInsights({ data }: Props) {
                   <Pie data={customerTypeDistribution} cx="50%" cy="50%"
                     innerRadius={50} outerRadius={75} dataKey="value" paddingAngle={3}>
                     {customerTypeDistribution.map((_: any, i: number) => (
-                      <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
                     ))}
                   </Pie>
                   <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)', fontSize: 12 }} />
@@ -49,7 +50,7 @@ export default function CustomerInsights({ data }: Props) {
               <div className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 mt-2">
                 {customerTypeDistribution.map((item: any, i: number) => (
                   <div key={i} className="flex items-center gap-1.5 text-xs text-slate-500">
-                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
                     {item.name}
                   </div>
                 ))}
@@ -109,7 +110,7 @@ export default function CustomerInsights({ data }: Props) {
             </thead>
             <tbody>
               {topPatients.map((p: any, i: number) => {
-                const color = CHART_COLORS[i % CHART_COLORS.length];
+                const color = COLORS[i % COLORS.length];
                 return (
                   <tr key={i} className="border-t border-slate-50 hover:bg-slate-50 transition-colors">
                     <td className="px-5 py-3">

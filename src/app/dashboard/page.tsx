@@ -373,8 +373,8 @@ export default function DashboardPage() {
           ) : dashData ? (
             <>
               {activeNav === 'overview'   && <ExecutiveOverview data={dashData} theme={t} enabledFeatures={enabledFeatures} hasDateFilter={!!(startDate || endDate)} />}
-              {activeNav === 'sales'      && <SalesAnalytics data={dashData} />}
-              {activeNav === 'customers'  && <CustomerInsights data={dashData} />}
+              {activeNav === 'sales'      && <SalesAnalytics data={dashData} theme={t} />}
+              {activeNav === 'customers'  && <CustomerInsights data={dashData} theme={t} />}
               {activeNav === 'crm'        && <CrmInsights />}
               {activeNav === 'promotions' && <PromotionsManager />}
               {activeNav === 'predictive' && <PredictiveDashboard />}

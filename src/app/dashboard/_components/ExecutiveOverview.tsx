@@ -2,7 +2,7 @@
 
 import { DollarSign, TrendingUp, Users, UserCheck, Target, Activity, Lock } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import KpiCard, { fmt, calcPct, CHART_COLORS } from './KpiCard';
+import KpiCard, { fmt, calcPct, themeChartColors } from './KpiCard';
 import ExecutiveSummary from './ExecutiveSummary';
 
 type Theme = { bg: string; bgDark: string; accent: string; gradient: string };
@@ -12,6 +12,7 @@ export default function ExecutiveOverview({ data, theme, enabledFeatures = [], h
   const { kpis, revenueTrend, topTreatments, topDoctors } = data;
 
   const accentGradient = `linear-gradient(135deg, ${theme.accent} 0%, #f59e0b 100%)`;
+  const COLORS = themeChartColors(theme);
 
   return (
     <div className="space-y-5">
@@ -93,7 +94,7 @@ export default function ExecutiveOverview({ data, theme, enabledFeatures = [], h
               />
               <Bar dataKey="revenue" radius={[0, 6, 6, 0]}>
                 {topTreatments.slice(0, 8).map((_: any, i: number) => (
-                  <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                  <Cell key={i} fill={COLORS[i % COLORS.length]} />
                 ))}
               </Bar>
             </BarChart>
@@ -109,7 +110,7 @@ export default function ExecutiveOverview({ data, theme, enabledFeatures = [], h
           </h3>
           <div className="space-y-4">
             {topDoctors.map((doc: any, i: number) => {
-              const color  = CHART_COLORS[i % CHART_COLORS.length];
+              const color  = COLORS[i % COLORS.length];
               const maxRev = topDoctors[0]?.revenue || 1;
               return (
                 <div key={i}>

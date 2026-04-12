@@ -24,6 +24,14 @@ export const T = {
 
 export const CHART_COLORS = [T.teal, T.orange, T.sage, T.gold, T.pink, T.red, T.cyan];
 
+// Category-neutral colours that complement any theme's primary/accent
+const NEUTRAL_EXTRAS = [T.sage, T.gold, T.pink, T.red, T.cyan, '#6366f1'];
+
+/** Returns a palette where [0]=theme.bg [1]=theme.accent then neutral fillers */
+export function themeChartColors(theme: { bg: string; accent: string }): string[] {
+  return [theme.bg, theme.accent, ...NEUTRAL_EXTRAS];
+}
+
 export const CAT_COLORS: Record<string, string> = {
   Botox:          T.teal,
   Filler:         T.tealMid,
