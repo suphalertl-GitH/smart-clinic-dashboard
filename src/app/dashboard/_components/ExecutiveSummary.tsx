@@ -16,9 +16,10 @@ const COLOR = {
   amber: { box: 'bg-amber-50 border-amber-200', title: 'text-amber-800', body: 'text-amber-700' },
 };
 
-function formatText(text: string) {
+function formatText(text: any) {
+  const s = String(text ?? '');
   return {
-    __html: text
+    __html: s
       .replace(/\n/g, '<br/>')
       .replace(/ • /g, '<br/>• ')
       .replace(/\*\*(.*?)\*\*/g, '<strong class="font-extrabold">$1</strong>'),
