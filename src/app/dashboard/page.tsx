@@ -6,6 +6,7 @@ import {
   Megaphone, Stethoscope, Bell, Search, LogOut, HeartPulse,
   Brain, Tag, Menu, X, ChevronRight, Settings, Sheet, Lock,
 } from 'lucide-react';
+import ClinicOps from './_components/ClinicOps';
 import ExecutiveOverview from './_components/ExecutiveOverview';
 import SalesAnalytics from './_components/SalesAnalytics';
 import CustomerInsights from './_components/CustomerInsights';
@@ -30,7 +31,7 @@ const THEMES: Record<ThemeKey, { bg: string; bgDark: string; accent: string; gra
 };
 
 // ── Nav items ─────────────────────────────────────────────────
-type NavId = 'overview' | 'sales' | 'customers' | 'crm' | 'promotions' | 'predictive' | 'sheets' | 'settings';
+type NavId = 'overview' | 'sales' | 'customers' | 'crm' | 'promotions' | 'predictive' | 'sheets' | 'settings' | 'clinicops';
 
 const NAV: { id: NavId; label: string; icon: React.FC<any>; badge?: string; featureKey?: string }[] = [
   { id: 'overview',   label: 'แดชบอร์ด',          icon: LayoutDashboard },
@@ -40,11 +41,10 @@ const NAV: { id: NavId; label: string; icon: React.FC<any>; badge?: string; feat
   { id: 'promotions', label: 'Promotions',         icon: Tag,        featureKey: 'promotions' },
   { id: 'predictive', label: 'Predictive AI',      icon: Brain,      featureKey: 'predictive', badge: 'AI' },
   { id: 'sheets',     label: 'Google Sheets',      icon: Sheet,      featureKey: 'google_sheets' },
+  { id: 'clinicops',  label: 'Clinic Ops',          icon: Activity },
   { id: 'settings',   label: 'Settings',           icon: Settings },
 ];
-const DISABLED_NAV = [
-  { label: 'Clinic Ops', icon: Activity },
-];
+const DISABLED_NAV: { label: string; icon: React.FC<any> }[] = [];
 
 // Bottom nav — show 5 most-used items on mobile
 const BOTTOM_NAV: { id: NavId; label: string; icon: React.FC<any> }[] = [
@@ -63,6 +63,7 @@ const PAGE_TITLE: Record<NavId, string> = {
   promotions: 'Promotions',
   predictive: 'Predictive AI',
   sheets:     'Google Sheets Sync',
+  clinicops:  'Clinic Ops',
   settings:   'Settings',
 };
 
@@ -378,6 +379,7 @@ export default function DashboardPage() {
               {activeNav === 'promotions' && <PromotionsManager />}
               {activeNav === 'predictive' && <PredictiveDashboard />}
               {activeNav === 'sheets'     && <SheetsSyncManager />}
+              {activeNav === 'clinicops'  && <ClinicOps />}
               {activeNav === 'settings'   && <SettingsManager />}
             </>
           ) : (
