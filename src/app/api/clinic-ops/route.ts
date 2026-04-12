@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
       heatmapMap[key] = (heatmapMap[key] || 0) + 1;
     }
 
-    if (a.sales_name) doctorVisitMap[a.sales_name] = (doctorVisitMap[a.sales_name] || 0) + 1;
+    if (a.doctor) doctorVisitMap[a.doctor] = (doctorVisitMap[a.doctor] || 0) + 1;
 
     const st = (a.note ?? '').toLowerCase();
     const noShow = st.includes('no-show') || st.includes('noshow') || st.includes('ไม่มา');
