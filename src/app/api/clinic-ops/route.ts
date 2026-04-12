@@ -5,11 +5,6 @@ const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const HOURS = ['08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00'];
 
-const DOCTOR_SCHEDULE: Record<number, string> = {
-  2: 'หมอพลอยใส', 3: 'หมอมินนี่', 4: 'หมอปอย',
-  5: 'หมอพลอยใส', 6: 'หมอพลอยใส', 0: 'หมอพลอยใส',
-};
-const SLOTS_PER_DAY = 20;
 
 // GET /api/clinic-ops?startDate=...&endDate=...
 export async function GET(req: NextRequest) {
@@ -47,7 +42,8 @@ export async function GET(req: NextRequest) {
       heatmapMap[key] = (heatmapMap[key] || 0) + 1;
     }
 
-    if (a.doctor) doctorVisitMap[a.doctor] = (doctorVisitMap[a.doctor] || 0) + 1;
+    const docKey = a.doctor?.trim() || 'ไม่ระบุแพทย์';
+    doctorVisitMap[docKey] = (doctorVisitMap[docKey] || 0) + 1;
 
     const st = (a.note ?? '').toLowerCase();
     const noShow = st.includes('no-show') || st.includes('noshow') || st.includes('ไม่มา');
@@ -69,26 +65,19 @@ export async function GET(req: NextRequest) {
   }
   const [peakDayStr, peakHour] = peakKey.split('-');
 
-  // Doctor workload
-  const effectiveStart = start ?? (minTime !== Infinity ? new Date(minTime) : new Date());
-  const effectiveEnd = end ?? (maxTime !== -Infinity ? new Date(maxTime) : new Date());
-  const potentialDays: Record<string, number> = { 'หมอพลอยใส': 0, 'หมอมินนี่': 0, 'หมอปอย': 0 };
-
-  for (let d = new Date(effectiveStart); d <= effectiveEnd; d.setDate(d.getDate() + 1)) {
-    const doc = DOCTOR_SCHEDULE[d.getDay()];
-    if (doc) potentialDays[doc]++;
-  }
-
+  // Doctor workload — ใช้ doctor_names จาก settings + นับจาก appointments จริง
   const { data: settingsData } = await supabaseAdmin.from('settings').select('doctor_names').eq('clinic_id', CLINIC_ID).single();
   const doctorNames: string[] = settingsData?.doctor_names ?? [];
-  const allDoctors = new Set([...doctorNames, ...Object.keys(doctorVisitMap), ...Object.keys(potentialDays)]);
+
+  // รวมทุกชื่อหมอที่ปรากฏใน appointments (รวม "ไม่ระบุแพทย์") + ชื่อจาก settings
+  const allDoctors = new Set([...doctorNames, ...Object.keys(doctorVisitMap)]);
 
   const doctorWorkload = [...allDoctors].filter(Boolean).map(name => {
     const visits = doctorVisitMap[name] || 0;
-    let cap = potentialDays[name] !== undefined ? potentialDays[name] * SLOTS_PER_DAY : Math.max(Math.ceil(visits * 1.25 / 10) * 10, SLOTS_PER_DAY);
-    if (cap === 0) cap = SLOTS_PER_DAY;
-    return { name, visits, capacity: cap };
-  }).sort((a, b) => b.visits - a.visits).slice(0, 8);
+    return { name, visits };
+  }).sort((a, b) => b.visits - a.visits).slice(0, 10);
+
+  const unassignedCount = doctorVisitMap['ไม่ระบุแพทย์'] ?? 0;
 
   return NextResponse.json({
     heatmap,
@@ -96,6 +85,7 @@ export async function GET(req: NextRequest) {
     totalAppointments: total,
     noShowCount,
     doctorWorkload,
+    unassignedCount,
     statusBreakdown: Object.entries(statusCountMap).sort(([, a], [, b]) => b - a).map(([status, count]) => ({ status, count })),
     peakDay: peakDayStr ?? 'Mon',
     peakHour: peakHour ?? '14:00',

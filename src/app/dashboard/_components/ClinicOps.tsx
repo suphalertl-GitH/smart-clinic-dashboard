@@ -67,7 +67,7 @@ export default function ClinicOps() {
   );
   if (!data) return null;
 
-  const { heatmap, noShowRate, totalAppointments, noShowCount, doctorWorkload, statusBreakdown, peakDay, peakHour } = data;
+  const { heatmap, noShowRate, totalAppointments, noShowCount, doctorWorkload, unassignedCount, statusBreakdown, peakDay, peakHour } = data;
 
   // heatmap: compute max for color scale
   const heatMax = Math.max(...(heatmap as any[]).map((c: any) => c.count), 1);
@@ -210,61 +210,61 @@ export default function ClinicOps() {
       {/* ── Doctor Workload ───────────────────────────────── */}
       {doctorWorkload?.length > 0 && (
         <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
-          <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-1.5">
-            <Stethoscope size={14} className="text-[#0f4c5c]" /> Workload แพทย์
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
+              <Stethoscope size={14} className="text-[#0f4c5c]" /> Workload แพทย์
+            </h3>
+            {unassignedCount > 0 && (
+              <span className="text-xs bg-amber-50 text-amber-600 border border-amber-200 px-2.5 py-1 rounded-full font-medium">
+                ⚠ ไม่ระบุแพทย์ {fmt(unassignedCount)} นัด
+              </span>
+            )}
+          </div>
+
           <div className="space-y-3">
             {(doctorWorkload as any[]).map((d: any, i: number) => {
-              const pct = d.capacity > 0 ? Math.min((d.visits / d.capacity) * 100, 100) : 0;
+              const maxVisits = Math.max(...(doctorWorkload as any[]).map((x: any) => x.visits), 1);
+              const pct = Math.round((d.visits / maxVisits) * 100);
+              const isUnassigned = d.name === 'ไม่ระบุแพทย์';
               return (
                 <div key={i}>
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-2">
                       <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
-                        style={{ background: WORKLOAD_COLORS[i % WORKLOAD_COLORS.length] }}>
+                        style={{ background: isUnassigned ? '#94a3b8' : WORKLOAD_COLORS[i % WORKLOAD_COLORS.length] }}>
                         {d.name.charAt(0)}
                       </div>
-                      <span className="text-sm text-slate-700">{d.name}</span>
+                      <span className={`text-sm ${isUnassigned ? 'text-slate-400 italic' : 'text-slate-700'}`}>{d.name}</span>
                     </div>
-                    <div className="text-right">
-                      <span className="text-xs font-bold text-slate-700">{fmt(d.visits)}</span>
-                      <span className="text-xs text-slate-400"> / {fmt(d.capacity)} slots</span>
-                      <span className="text-xs font-semibold ml-2" style={{ color: WORKLOAD_COLORS[i % WORKLOAD_COLORS.length] }}>
-                        {pct.toFixed(0)}%
-                      </span>
-                    </div>
+                    <span className="text-xs font-bold text-slate-700">{fmt(d.visits)} นัด</span>
                   </div>
                   <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                     <div className="h-full rounded-full transition-all"
-                      style={{ width: `${pct}%`, background: WORKLOAD_COLORS[i % WORKLOAD_COLORS.length] }} />
+                      style={{ width: `${pct}%`, background: isUnassigned ? '#94a3b8' : WORKLOAD_COLORS[i % WORKLOAD_COLORS.length] }} />
                   </div>
                 </div>
               );
             })}
           </div>
 
-          {/* Bar chart */}
-          <div className="mt-5">
-            <ResponsiveContainer width="100%" height={160}>
-              <BarChart data={doctorWorkload} barSize={24}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
-                <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} />
-                <Tooltip
-                  formatter={(val: any, name: any) => [
-                    `${fmt(val)} ${name === 'visits' ? 'นัด' : 'slots'}`,
-                    name === 'visits' ? 'นัดจริง' : 'ความจุ',
-                  ]}
-                />
-                <Bar dataKey="capacity" fill="#e2e8f0" name="capacity" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="visits" fill="#0f4c5c" name="visits" radius={[3, 3, 0, 0]}>
-                  {(doctorWorkload as any[]).map((_: any, i: number) => (
-                    <Cell key={i} fill={WORKLOAD_COLORS[i % WORKLOAD_COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          {/* Bar chart — exclude unassigned */}
+          {(doctorWorkload as any[]).filter((d: any) => d.name !== 'ไม่ระบุแพทย์').length > 0 && (
+            <div className="mt-5">
+              <ResponsiveContainer width="100%" height={160}>
+                <BarChart data={(doctorWorkload as any[]).filter((d: any) => d.name !== 'ไม่ระบุแพทย์')} barSize={32}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
+                  <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                  <Tooltip formatter={(val: any) => [`${fmt(val)} นัด`, 'จำนวนนัด']} />
+                  <Bar dataKey="visits" name="visits" radius={[4, 4, 0, 0]}>
+                    {(doctorWorkload as any[]).filter((d: any) => d.name !== 'ไม่ระบุแพทย์').map((_: any, i: number) => (
+                      <Cell key={i} fill={WORKLOAD_COLORS[i % WORKLOAD_COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
       )}
     </div>
