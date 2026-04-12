@@ -1,0 +1,190 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { supabaseAdmin } from '@/lib/supabase';
+
+const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
+const SHEET_ID  = '1OAMPO528LmZZb2x389-RweCGtdRHLsfu_t9csfzdjPw';
+const GID_PAT   = '0';
+const GID_VISIT = '765833505';
+const BATCH     = 500;
+
+// ─── CSV Parser ───────────────────────────────────────────────
+function parseCSV(text: string): Record<string, string>[] {
+  const lines = text.split(/\r?\n/);
+  const headers = splitLine(lines[0]);
+  const rows: Record<string, string>[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    const cols = splitLine(line);
+    const obj: Record<string, string> = {};
+    headers.forEach((h, idx) => { obj[h] = cols[idx] ?? ''; });
+    rows.push(obj);
+  }
+  return rows;
+}
+
+function splitLine(line: string): string[] {
+  const result: string[] = [];
+  let cur = '', inQ = false;
+  for (const c of line) {
+    if (c === '"') { inQ = !inQ; }
+    else if (c === ',' && !inQ) { result.push(cur.trim()); cur = ''; }
+    else { cur += c; }
+  }
+  result.push(cur.trim());
+  return result;
+}
+
+const s = (v: any) => { const t = String(v ?? '').trim(); return t || null; };
+const price = (v: any) => parseFloat(String(v || '0').replace(/,/g, '')) || 0;
+
+function parseThaiDate(v: any): string | null {
+  if (!v) return null;
+  const str = String(v).trim();
+  const m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0, 10);
+  return null;
+}
+
+// ─── Fetch CSV from Google Sheets ────────────────────────────
+async function fetchCSV(gid: string): Promise<string> {
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${gid}`;
+  const res = await fetch(url, { redirect: 'follow' });
+  if (!res.ok) throw new Error(`Sheet fetch failed: ${res.status}`);
+  return res.text();
+}
+
+// ─── Sync functions ───────────────────────────────────────────
+async function syncPatients(patRows: Record<string, string>[]) {
+  const patients = patRows
+    .map(r => ({
+      hn:                String(r['HN'] || '').trim(),
+      full_name:         String(r['ชื่อ-นามสกุล'] || '').trim(),
+      phone:             s(r['เบอร์โทรศัพท์']),
+      allergies:         s(r['ประวัติแพ้ยา']),
+      disease:           s(r['โรคประจำตัว']),
+      face_image_url:    s(r['อัปโหลดรูปใบหน้า']),
+      source:            s(r['Source']),
+      sales_name:        s(r['Sales_Name']),
+      consent_image_url: s(r['Consent (URL)']),
+    }))
+    .filter(p => p.hn && !/^\d{1,2}:\d{2}/.test(p.hn));
+
+  let updated = 0;
+  for (let b = 0; b < patients.length; b += BATCH) {
+    const chunk = patients.slice(b, b + BATCH).map(p => ({ clinic_id: CLINIC_ID, ...p }));
+    const { error } = await supabaseAdmin.from('patients').upsert(chunk, { onConflict: 'clinic_id,hn' });
+    if (error) console.error('patient batch error:', error.message);
+    else updated += chunk.length;
+  }
+  return { total: patients.length, updated };
+}
+
+async function syncVisits(visRows: Record<string, string>[]) {
+  const visits = visRows.filter(r => price(r['ยอดรวม'] || r['ราคา']) > 0);
+  let added = 0, updated = 0;
+
+  for (const r of visits) {
+    const hn = String(r['HN'] || '').trim();
+    const treatmentName = String(r['Treatment_Name'] || '').trim();
+    const p = price(r['ยอดรวม'] || r['ราคา']);
+
+    const { data: patient } = await supabaseAdmin
+      .from('patients').select('id').eq('clinic_id', CLINIC_ID).eq('hn', hn).maybeSingle();
+
+    const row: any = {
+      clinic_id:      CLINIC_ID,
+      patient_id:     patient?.id || null,
+      hn,
+      treatment_name: treatmentName,
+      price:          p,
+      sales_name:     s(r['Sales_name']),
+      payment_method: s(r['Payment_Method']) || 'โอน',
+      name:           s(r['ชื่อ']),
+      phone:          s(r['เบอร์โทร']),
+      customer_type:  'returning',
+    };
+
+    const { data: existing } = await supabaseAdmin
+      .from('visits').select('id')
+      .eq('clinic_id', CLINIC_ID).eq('hn', hn)
+      .eq('treatment_name', treatmentName).eq('price', p).limit(1);
+
+    if (existing && existing.length > 0) {
+      await supabaseAdmin.from('visits').update(row).eq('id', existing[0].id);
+      updated++;
+    } else {
+      await supabaseAdmin.from('visits').insert(row);
+      added++;
+    }
+  }
+  return { total: visits.length, added, updated };
+}
+
+async function syncAppointments(visRows: Record<string, string>[]) {
+  const appts = visRows.filter(r => {
+    const d = r['วันที่นัดหมาย (Appointment_Date)'];
+    return d && String(d).trim();
+  });
+  let added = 0, updated = 0;
+
+  for (const r of appts) {
+    const hn       = String(r['HN'] || '').trim();
+    const apptDate = parseThaiDate(r['วันที่นัดหมาย (Appointment_Date)']);
+    if (!apptDate) continue;
+    const apptTime = s(r['เวลานัดหมาย (Appointment_Time)']) || '11:00';
+
+    const { data: patient } = await supabaseAdmin
+      .from('patients').select('id').eq('clinic_id', CLINIC_ID).eq('hn', hn).maybeSingle();
+
+    const row: any = {
+      clinic_id:     CLINIC_ID,
+      patient_id:    patient?.id || null,
+      hn,
+      name:          s(r['ชื่อ']) || hn || 'ไม่ระบุ',
+      phone:         s(r['เบอร์โทร']),
+      sales_name:    s(r['Sales_name']),
+      status:        s(r['Customer_Type'])?.toLowerCase() === 'new' ? 'new' : 'returning',
+      date:          apptDate,
+      time:          apptTime,
+      procedure:     s(r['หัตถการที่นัด']),
+      note:          s(r['Note']),
+      follow_result: s(r['ผลการติดตาม']),
+      follow_status: s(r['สถานะติดตาม']),
+    };
+
+    const { data: existing } = await supabaseAdmin
+      .from('appointments').select('id')
+      .eq('clinic_id', CLINIC_ID).eq('date', apptDate).eq('time', apptTime).eq('hn', hn).limit(1);
+
+    if (existing && existing.length > 0) {
+      await supabaseAdmin.from('appointments').update(row).eq('id', existing[0].id);
+      updated++;
+    } else {
+      await supabaseAdmin.from('appointments').insert(row);
+      added++;
+    }
+  }
+  return { total: appts.length, added, updated };
+}
+
+// ─── Route ────────────────────────────────────────────────────
+export async function POST(req: NextRequest) {
+  try {
+    const [patCSV, visCSV] = await Promise.all([fetchCSV(GID_PAT), fetchCSV(GID_VISIT)]);
+    const patRows = parseCSV(patCSV);
+    const visRows = parseCSV(visCSV);
+
+    const [patients, visits, appointments] = await Promise.all([
+      syncPatients(patRows),
+      syncVisits(visRows),
+      syncAppointments(visRows),
+    ]);
+
+    return NextResponse.json({ success: true, stats: { patients, visits, appointments } });
+  } catch (err: any) {
+    console.error('sheets-sync/run error:', err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
