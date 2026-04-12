@@ -161,21 +161,33 @@ async function syncVisits(visRows: Record<string, string>[], filterToday?: strin
     const dedupStart = visitDate ? new Date(visitDate + 'T00:00:00+07:00').toISOString() : undefined;
     const dedupEnd   = visitDate ? new Date(visitDate + 'T23:59:59+07:00').toISOString() : undefined;
 
-    // dedup query: ถ้า HN ว่าง ใช้ name (ชื่อลูกค้า) แยกแยะแทน
-    function buildDedupQuery() {
-      let q = supabaseAdmin.from('visits').select('id, customer_type')
-        .eq('clinic_id', CLINIC_ID).eq('hn', hn)
-        .eq('treatment_name', treatmentName).eq('price', p);
-      if (!hn && visitName) q = q.eq('name', visitName);
-      if (dedupStart && dedupEnd) q = q.gte('created_at', dedupStart).lte('created_at', dedupEnd);
-      return q;
+    // dedup: หา candidates ด้วย hn + treatment + price + date ก่อน
+    // แล้วค่อย match ด้วย name เพื่อแยกลูกค้าคนละคนที่ไม่มี HN
+    let dedupQ = supabaseAdmin.from('visits').select('id, customer_type, name')
+      .eq('clinic_id', CLINIC_ID).eq('hn', hn)
+      .eq('treatment_name', treatmentName).eq('price', p);
+    if (dedupStart && dedupEnd) dedupQ = dedupQ.gte('created_at', dedupStart).lte('created_at', dedupEnd);
+    const { data: candidates } = await dedupQ;
+
+    let existingRow: { id: string; customer_type: string } | null = null;
+    if (candidates && candidates.length > 0) {
+      if (!hn && visitName) {
+        // ถ้า HN ว่าง ให้ match ด้วย name
+        // — exact match ก่อน (sync ครั้งถัดไปหลัง name ถูก set แล้ว)
+        // — fallback: null-name row (row เก่าที่ยังไม่มี name → update แล้ว set name)
+        // — ถ้าทุก candidate มี name แตกต่างออกไป → ถือว่าเป็นลูกค้าใหม่ → insert
+        const exactMatch  = candidates.find(c => c.name === visitName);
+        const nullMatch   = candidates.find(c => c.name === null || c.name === '');
+        existingRow = exactMatch ?? nullMatch ?? null;
+      } else {
+        existingRow = candidates[0];
+      }
     }
 
-    const { data: existing } = await buildDedupQuery().limit(1);
-    if (existing && existing.length > 0) {
+    if (existingRow) {
       const { created_at: _c, customer_type: _ct, ...updateFields } = row;
-      const finalType = incomingCustomerType ?? existing[0].customer_type ?? 'returning';
-      await supabaseAdmin.from('visits').update({ ...updateFields, customer_type: finalType }).eq('id', existing[0].id);
+      const finalType = incomingCustomerType ?? existingRow.customer_type ?? 'returning';
+      await supabaseAdmin.from('visits').update({ ...updateFields, customer_type: finalType }).eq('id', existingRow.id);
       updated++;
     } else {
       const { error } = await supabaseAdmin.from('visits').insert(row);
