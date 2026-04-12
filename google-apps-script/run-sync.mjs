@@ -164,6 +164,7 @@ function readVisits(rows, incremental, today) {
       sales_name:     s(r['Sales_name']),
       price:          price(r['ยอดรวม'] || r['ราคา']),
       treatment_name: String(r['Treatment_Name'] || '').trim(),
+      doctor:         s(r['ชื่อแพทย์ที่ให้บริการ']),
       payment_method: s(r['Payment_Method']) || 'โอน',
       name:           s(r['ชื่อ']),
       phone:          s(r['เบอร์โทร']),

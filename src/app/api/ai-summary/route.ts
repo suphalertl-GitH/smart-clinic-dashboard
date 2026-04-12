@@ -12,11 +12,13 @@ export async function POST(_req: NextRequest) {
   try {
     // ดึงข้อมูลเดือนนี้
     const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
-    const startOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    // Bangkok UTC+7 → start of month in UTC = day 1 at 17:00 previous day UTC
+    const startOfMonthBkk = new Date(now.getFullYear(), now.getMonth(), 1); // midnight Bangkok
+    const startOfMonthUTC = new Date(startOfMonthBkk.getTime() - 7 * 60 * 60 * 1000); // convert to UTC
 
     const [{ data: visits }, { data: patients }] = await Promise.all([
       supabaseAdmin.from('visits').select('treatment_name, price, sales_name, doctor, payment_method, customer_type, created_at')
-        .eq('clinic_id', CLINIC_ID).gte('created_at', startOfMonth).limit(500),
+        .eq('clinic_id', CLINIC_ID).gte('created_at', startOfMonthUTC.toISOString()).limit(500),
       supabaseAdmin.from('patients').select('source, sales_name, created_at')
         .eq('clinic_id', CLINIC_ID).limit(500),
     ]);

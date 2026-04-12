@@ -99,6 +99,7 @@ async function syncVisits(visRows: Record<string, string>[]) {
       hn,
       treatment_name: treatmentName,
       price:          p,
+      doctor:         s(r['ชื่อแพทย์ที่ให้บริการ']),
       sales_name:     s(r['Sales_name']),
       payment_method: s(r['Payment_Method']) || 'โอน',
       name:           s(r['ชื่อ']),
