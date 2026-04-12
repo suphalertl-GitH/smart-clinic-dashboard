@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { requireTier } from '@/lib/tier';
+import { requireFeature } from '@/lib/tier';
 
 const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
 
 // GET /api/promotions
 export async function GET() {
-  const gate = await requireTier(CLINIC_ID, 'professional');
+  const gate = await requireFeature(CLINIC_ID, 'promotions');
   if (gate) return gate;
   const { data, error } = await supabaseAdmin
     .from('promotions')
@@ -20,7 +20,7 @@ export async function GET() {
 
 // POST /api/promotions — create new
 export async function POST(req: NextRequest) {
-  const gate = await requireTier(CLINIC_ID, 'professional');
+  const gate = await requireFeature(CLINIC_ID, 'promotions');
   if (gate) return gate;
   try {
     const body = await req.json();

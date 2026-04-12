@@ -25,17 +25,33 @@ const TIER_LABEL: Record<string, string> = {
   starter: 'Starter',
   professional: 'Professional',
   enterprise: 'Enterprise',
+  custom: 'Custom',
 };
 const TIER_COLOR: Record<string, string> = {
   starter:      'bg-sky-100 text-sky-700',
   professional: 'bg-violet-100 text-violet-700',
   enterprise:   'bg-amber-100 text-amber-700',
+  custom:       'bg-gray-100 text-gray-700',
 };
 const TIER_PRICE: Record<string, number> = {
   starter: 1490,
   professional: 3990,
   enterprise: 12000,
+  custom: 0,
 };
+
+// Feature list (client-safe, mirrors lib/tier.ts FEATURE_META)
+const FEATURE_META = [
+  { key: 'sales_analytics',   label: 'Sales Analytics',      desc: 'รายงานและวิเคราะห์ยอดขาย' },
+  { key: 'customer_insights', label: 'Customer Insights',    desc: 'วิเคราะห์พฤติกรรมลูกค้า' },
+  { key: 'ai_summary',        label: 'AI Executive Summary', desc: 'สรุปรายงาน AI ในหน้าแรก' },
+  { key: 'promotions',        label: 'Promotions',           desc: 'จัดการโปรโมชั่นและส่วนลด' },
+  { key: 'crm',               label: 'CRM & Campaigns',      desc: 'ระบบ CRM, RFM และ campaigns' },
+  { key: 'promptpay',         label: 'PromptPay QR',         desc: 'QR พร้อมเพย์ในหน้า visit' },
+  { key: 'google_sheets',     label: 'Google Sheets',        desc: 'Sync ข้อมูลกับ Google Sheets' },
+  { key: 'predictive',        label: 'Predictive AI',        desc: 'AI พยากรณ์ revenue/churn' },
+  { key: 'followup_bot',      label: 'Smart CRM Bot',        desc: 'Bot follow-up อัตโนมัติทาง LINE' },
+] as const;
 
 function fmt(n: number) {
   return n.toLocaleString('th-TH');
@@ -129,6 +145,7 @@ function OnboardModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
                 <option value="starter">Starter — 1,490 ฿/เดือน</option>
                 <option value="professional">Professional — 3,990 ฿/เดือน</option>
                 <option value="enterprise">Enterprise — 12,000 ฿/เดือน</option>
+                <option value="custom">Custom — กำหนดเอง</option>
               </select>
               <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             </div>
@@ -159,20 +176,29 @@ function EditClinicModal({ clinic, onClose, onSaved }: {
   const [tier, setTier] = useState(clinic.tier);
   const [isActive, setIsActive] = useState(clinic.is_active !== false);
   const [expiresAt, setExpiresAt] = useState(clinic.subscription_expires_at?.slice(0, 10) ?? '');
+  const [customFeatures, setCustomFeatures] = useState<Record<string, boolean>>(
+    (clinic.custom_features as Record<string, boolean>) ?? {}
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  function toggleFeature(key: string) {
+    setCustomFeatures(f => ({ ...f, [key]: !f[key] }));
+  }
 
   async function handleSave() {
     setLoading(true);
     setError('');
+    const body: Record<string, unknown> = {
+      tier,
+      is_active: isActive,
+      subscription_expires_at: expiresAt || null,
+    };
+    if (tier === 'custom') body.custom_features = customFeatures;
     const res = await fetch(`/api/admin/clinics/${clinic.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        tier,
-        is_active: isActive,
-        subscription_expires_at: expiresAt || null,
-      }),
+      body: JSON.stringify(body),
     });
     const json = await res.json();
     if (!res.ok) { setError(json.error ?? 'เกิดข้อผิดพลาด'); setLoading(false); return; }
@@ -182,8 +208,8 @@ function EditClinicModal({ clinic, onClose, onSaved }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
-        <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100 shrink-0">
           <div>
             <h2 className="font-semibold text-gray-900 text-sm">แก้ไขคลินิก</h2>
             <p className="text-xs text-gray-500 mt-0.5">{clinic.name}</p>
@@ -192,7 +218,8 @@ function EditClinicModal({ clinic, onClose, onSaved }: {
             <X className="w-5 h-5" />
           </button>
         </div>
-        <div className="p-6 space-y-4">
+        <div className="p-6 space-y-4 overflow-y-auto">
+          {/* Tier */}
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Subscription Tier</label>
             <div className="relative">
@@ -204,11 +231,45 @@ function EditClinicModal({ clinic, onClose, onSaved }: {
                 <option value="starter">Starter — 1,490 ฿/เดือน</option>
                 <option value="professional">Professional — 3,990 ฿/เดือน</option>
                 <option value="enterprise">Enterprise — 12,000 ฿/เดือน</option>
+                <option value="custom">Custom — กำหนดเอง</option>
               </select>
               <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             </div>
           </div>
 
+          {/* Custom features */}
+          {tier === 'custom' && (
+            <div className="border border-gray-100 rounded-xl overflow-hidden">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+                เลือก Features
+              </p>
+              <div className="divide-y divide-gray-50">
+                {FEATURE_META.map(({ key, label, desc }) => (
+                  <label
+                    key={key}
+                    className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors"
+                  >
+                    <div
+                      onClick={() => toggleFeature(key)}
+                      className={`w-9 h-5 rounded-full flex-shrink-0 relative transition-colors cursor-pointer ${
+                        customFeatures[key] ? 'bg-[#0f4c5c]' : 'bg-gray-200'
+                      }`}
+                    >
+                      <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                        customFeatures[key] ? 'translate-x-4' : 'translate-x-0.5'
+                      }`} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-800">{label}</p>
+                      <p className="text-xs text-gray-400">{desc}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Expiry */}
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">วันหมดอายุ Subscription</label>
             <input
@@ -219,6 +280,7 @@ function EditClinicModal({ clinic, onClose, onSaved }: {
             />
           </div>
 
+          {/* Active toggle */}
           <div className="flex items-center gap-3">
             <button
               type="button"

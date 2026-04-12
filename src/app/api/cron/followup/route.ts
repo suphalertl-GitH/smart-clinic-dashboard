@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { pushMessage, textMessage, flexMessage } from '@/lib/line';
-import { requireTier } from '@/lib/tier';
+import { hasFeature } from '@/lib/tier';
 
 const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
 const CLINIC = { name: 'พลอยใสคลินิก', phone: '065-553-9361' };
@@ -14,8 +14,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const gate = await requireTier(CLINIC_ID, 'enterprise');
-  if (gate) return NextResponse.json({ skipped: 'tier < enterprise' }, { status: 200 });
+  if (!(await hasFeature(CLINIC_ID, 'followup_bot'))) {
+    return NextResponse.json({ skipped: 'followup_bot not enabled' }, { status: 200 });
+  }
 
   try {
     // ดึง treatment cycles จาก settings

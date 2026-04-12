@@ -31,25 +31,17 @@ const THEMES: Record<ThemeKey, { bg: string; bgDark: string; accent: string; gra
 
 // ── Nav items ─────────────────────────────────────────────────
 type NavId = 'overview' | 'sales' | 'customers' | 'crm' | 'promotions' | 'predictive' | 'sheets' | 'settings';
-type Tier = 'starter' | 'professional' | 'enterprise';
 
-const NAV: { id: NavId; label: string; icon: React.FC<any>; badge?: string; minTier?: Tier }[] = [
+const NAV: { id: NavId; label: string; icon: React.FC<any>; badge?: string; featureKey?: string }[] = [
   { id: 'overview',   label: 'แดชบอร์ด',          icon: LayoutDashboard },
   { id: 'sales',      label: 'Sales Analytics',   icon: BarChart2 },
-  { id: 'customers',  label: 'Customer Insights', icon: Users,      minTier: 'professional' },
-  { id: 'crm',        label: 'CRM & Campaigns',   icon: Megaphone,  minTier: 'professional' },
-  { id: 'promotions', label: 'Promotions',         icon: Tag,        minTier: 'professional' },
-  { id: 'predictive', label: 'Predictive AI',      icon: Brain,      minTier: 'enterprise', badge: 'AI' },
-  { id: 'sheets',     label: 'Google Sheets',      icon: Sheet,      minTier: 'professional' },
+  { id: 'customers',  label: 'Customer Insights', icon: Users,      featureKey: 'customer_insights' },
+  { id: 'crm',        label: 'CRM & Campaigns',   icon: Megaphone,  featureKey: 'crm' },
+  { id: 'promotions', label: 'Promotions',         icon: Tag,        featureKey: 'promotions' },
+  { id: 'predictive', label: 'Predictive AI',      icon: Brain,      featureKey: 'predictive', badge: 'AI' },
+  { id: 'sheets',     label: 'Google Sheets',      icon: Sheet,      featureKey: 'google_sheets' },
   { id: 'settings',   label: 'Settings',           icon: Settings },
 ];
-
-const TIER_RANK: Record<Tier, number> = { starter: 0, professional: 1, enterprise: 2 };
-function hasAccess(clinicTier: Tier, minTier?: Tier) {
-  if (!minTier) return true;
-  return TIER_RANK[clinicTier] >= TIER_RANK[minTier];
-}
-const TIER_LABEL: Record<Tier, string> = { starter: 'Starter', professional: 'Professional', enterprise: 'Enterprise' };
 const DISABLED_NAV = [
   { label: 'Clinic Ops', icon: Activity },
 ];
@@ -76,7 +68,7 @@ const PAGE_TITLE: Record<NavId, string> = {
 
 // ── Sidebar inner content (reused in both desktop & drawer) ────
 function SidebarContent({
-  activeNav, setActiveNav, theme, setTheme, t, onNavClick, tier,
+  activeNav, setActiveNav, theme, setTheme, t, onNavClick, enabledFeatures, tierLabel,
 }: {
   activeNav: NavId;
   setActiveNav: (id: NavId) => void;
@@ -84,7 +76,8 @@ function SidebarContent({
   setTheme: (k: ThemeKey) => void;
   t: typeof THEMES.teal;
   onNavClick?: () => void;
-  tier: Tier;
+  enabledFeatures: string[];
+  tierLabel: string;
 }) {
   return (
     <>
@@ -96,28 +89,26 @@ function SidebarContent({
           </div>
           <div>
             <h1 className="font-heading font-bold text-base leading-tight">Smart Clinic</h1>
-            <p className="text-xs text-white/50">{TIER_LABEL[tier]}</p>
+            <p className="text-xs text-white/50">{tierLabel}</p>
           </div>
         </div>
       </div>
 
       {/* Nav */}
       <nav className="flex-1 py-4 px-3 space-y-1 overflow-auto">
-        {NAV.map(({ id, label, icon: Icon, badge, minTier }) => {
+        {NAV.map(({ id, label, icon: Icon, badge, featureKey }) => {
           const active = activeNav === id;
-          const locked = !hasAccess(tier, minTier);
+          const locked = !!featureKey && !enabledFeatures.includes(featureKey);
           if (locked) {
             return (
               <div
                 key={id}
-                title={`ต้องการ ${TIER_LABEL[minTier!]} ขึ้นไป`}
+                title="ฟีเจอร์นี้ไม่รวมในแพ็กเกจของคุณ"
                 className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-white/25 cursor-not-allowed select-none"
               >
                 <Icon size={18} />
                 <span className="flex-1">{label}</span>
-                <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded font-bold bg-white/10 text-white/30">
-                  <Lock size={8} /> {TIER_LABEL[minTier!]}+
-                </span>
+                <Lock size={12} className="shrink-0 opacity-50" />
               </div>
             );
           }
@@ -204,7 +195,8 @@ export default function DashboardPage() {
   const [endDate, setEndDate]       = useState('');
   const [theme, setTheme]           = useState<ThemeKey>('teal');
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [tier, setTier]             = useState<Tier>('starter');
+  const [enabledFeatures, setEnabledFeatures] = useState<string[]>([]);
+  const [tierLabel, setTierLabel]   = useState('Starter');
 
   const t = THEMES[theme];
 
@@ -219,7 +211,11 @@ export default function DashboardPage() {
       if (!text) throw new Error('empty');
       const parsed = JSON.parse(text);
       setDashData(parsed);
-      if (parsed.tier) setTier(parsed.tier as Tier);
+      if (parsed.enabled_features) setEnabledFeatures(parsed.enabled_features);
+      if (parsed.tier) {
+        const labels: Record<string, string> = { starter: 'Starter', professional: 'Professional', enterprise: 'Enterprise', custom: 'Custom' };
+        setTierLabel(labels[parsed.tier] ?? parsed.tier);
+      }
       setUsingMock(false);
     } catch (e: any) {
       console.warn('Dashboard: using mock data —', e.message);
@@ -239,7 +235,7 @@ export default function DashboardPage() {
     return () => window.removeEventListener('resize', handler);
   }, []);
 
-  const sidebarProps = { activeNav, setActiveNav, theme, setTheme, t, tier };
+  const sidebarProps = { activeNav, setActiveNav, theme, setTheme, t, enabledFeatures, tierLabel };
 
   return (
     <div className="flex h-full w-full font-body overflow-hidden" style={{ backgroundColor: '#f1f5f9' }}>
@@ -375,7 +371,7 @@ export default function DashboardPage() {
             </div>
           ) : dashData ? (
             <>
-              {activeNav === 'overview'   && <ExecutiveOverview data={dashData} theme={t} tier={tier} />}
+              {activeNav === 'overview'   && <ExecutiveOverview data={dashData} theme={t} enabledFeatures={enabledFeatures} />}
               {activeNav === 'sales'      && <SalesAnalytics data={dashData} />}
               {activeNav === 'customers'  && <CustomerInsights data={dashData} />}
               {activeNav === 'crm'        && <CrmInsights />}
@@ -398,7 +394,7 @@ export default function DashboardPage() {
         {BOTTOM_NAV.map(({ id, label, icon: Icon }) => {
           const active = activeNav === id;
           const navItem = NAV.find(n => n.id === id);
-          const locked = navItem ? !hasAccess(tier, navItem.minTier) : false;
+          const locked = navItem?.featureKey ? !enabledFeatures.includes(navItem.featureKey) : false;
           return (
             <button
               key={id}

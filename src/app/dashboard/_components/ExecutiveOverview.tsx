@@ -6,9 +6,9 @@ import KpiCard, { fmt, calcPct, CHART_COLORS } from './KpiCard';
 import ExecutiveSummary from './ExecutiveSummary';
 
 type Theme = { bg: string; bgDark: string; accent: string; gradient: string };
-type Props  = { data: any; theme: Theme; tier?: string };
+type Props  = { data: any; theme: Theme; enabledFeatures?: string[] };
 
-export default function ExecutiveOverview({ data, theme, tier = 'starter' }: Props) {
+export default function ExecutiveOverview({ data, theme, enabledFeatures = [] }: Props) {
   const { kpis, revenueTrend, topTreatments, topDoctors } = data;
 
   const accentGradient = `linear-gradient(135deg, ${theme.accent} 0%, #f59e0b 100%)`;
@@ -135,7 +135,7 @@ export default function ExecutiveOverview({ data, theme, tier = 'starter' }: Pro
             })}
           </div>
         </div>
-        {tier === 'starter' ? (
+        {!enabledFeatures.includes('ai_summary') ? (
           <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm flex flex-col items-center justify-center gap-3 min-h-[200px]">
             <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center">
               <Lock size={22} className="text-slate-400" />

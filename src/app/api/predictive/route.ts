@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { claudeComplete } from '@/lib/claude';
-import { requireTier } from '@/lib/tier';
+import { requireFeature } from '@/lib/tier';
 
 const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
 
@@ -36,7 +36,7 @@ function linearForecast(values: number[], futureN = 3): { trend: number[]; futur
 
 // GET /api/predictive
 export async function GET(req: NextRequest) {
-  const gate = await requireTier(CLINIC_ID, 'enterprise');
+  const gate = await requireFeature(CLINIC_ID, 'predictive');
   if (gate) return gate;
 
   const force = req.nextUrl.searchParams.get('force') === '1';

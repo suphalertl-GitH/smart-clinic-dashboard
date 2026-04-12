@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { getEnabledFeatures } from '@/lib/tier';
 
 const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
 
@@ -36,10 +37,11 @@ export async function GET(req: NextRequest) {
   const startDate = req.nextUrl.searchParams.get('startDate');
   const endDate = req.nextUrl.searchParams.get('endDate');
 
-  const [{ data: allVisits }, { data: allPatients }, { data: clinicRow }] = await Promise.all([
+  const [{ data: allVisits }, { data: allPatients }, { data: clinicRow }, enabledFeatures] = await Promise.all([
     supabaseAdmin.from('visits').select('*').eq('clinic_id', clinic_id).limit(5000),
     supabaseAdmin.from('patients').select('*').eq('clinic_id', clinic_id).limit(5000),
     supabaseAdmin.from('clinics').select('tier').eq('id', clinic_id).single(),
+    getEnabledFeatures(clinic_id),
   ]);
 
   const start = startDate ? new Date(startDate) : null;
@@ -219,5 +221,6 @@ export async function GET(req: NextRequest) {
     channelPerformance: Object.entries(sourceMap).sort(([, a], [, b]) => b - a).slice(0, 6).map(([source, count]) => ({ source, count })),
     lastUpdated: getThaiNow().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
     tier: clinicRow?.tier ?? 'starter',
+    enabled_features: enabledFeatures,
   });
 }

@@ -50,10 +50,11 @@ export interface Clinic {
   line_channel_access_token: string | null;
   line_channel_secret: string | null;
   liff_id: string | null;
-  tier: 'starter' | 'professional' | 'enterprise';
+  tier: 'starter' | 'professional' | 'enterprise' | 'custom';
   is_active: boolean;
   owner_email: string | null;
   subscription_expires_at: string | null;
+  custom_features: Record<string, boolean> | null;
   created_at: string;
 }
 
