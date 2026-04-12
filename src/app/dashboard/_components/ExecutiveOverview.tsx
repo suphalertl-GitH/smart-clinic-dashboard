@@ -24,7 +24,7 @@ export default function ExecutiveOverview({ data, theme, enabledFeatures = [], h
           icon={<DollarSign size={20} className="text-white" />}
           label={hasDateFilter ? 'Period Revenue' : 'Revenue Today'}
           value={fmt(kpis.revenueToday)}
-          change={hasDateFilter ? undefined : calcPct(kpis.revenueToday, kpis.prevMonthRevenue / 30)}
+          change={hasDateFilter ? undefined : calcPct(kpis.revenueToday, kpis.yesterdayRevenue)}
           animClass="fade-in fade-in-d1"
         />
         <KpiCard

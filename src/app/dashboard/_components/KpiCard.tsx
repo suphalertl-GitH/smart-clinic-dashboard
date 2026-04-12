@@ -1,5 +1,5 @@
 function pct(cur: number, prev: number) {
-  if (prev === 0) return cur > 0 ? 100 : 0;
+  if (prev === 0) return null; // ไม่มีข้อมูลเปรียบเทียบ → ไม่แสดง %
   return ((cur - prev) / prev) * 100;
 }
 
@@ -65,7 +65,7 @@ export default function KpiCard({
   icon: React.ReactNode;
   label: string;
   value: string;
-  change?: number;
+  change?: number | null;
   positiveUp?: boolean;
   iconBg?: string;
   iconColor?: string;
@@ -103,7 +103,7 @@ export default function KpiCard({
           <span className="text-xs px-2.5 py-1 rounded-full"
             style={colored ? { background: 'rgba(255,255,255,0.18)' } : { background: '#f1f5f9', color: '#64748b' }}
           >{badge}</span>
-        ) : change !== undefined ? (
+        ) : change !== undefined && change !== null ? (
           <span
             className="text-xs font-bold px-2 py-1 rounded-full"
             style={colored

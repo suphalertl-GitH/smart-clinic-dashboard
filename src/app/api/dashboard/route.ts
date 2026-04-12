@@ -65,6 +65,8 @@ export async function GET(req: NextRequest) {
 
   const nowThai = getThaiNow();
   const todayStr = `${nowThai.getFullYear()}-${String(nowThai.getMonth() + 1).padStart(2, '0')}-${String(nowThai.getDate()).padStart(2, '0')}`;
+  const yesterdayThai = new Date(nowThai); yesterdayThai.setDate(yesterdayThai.getDate() - 1);
+  const yesterdayStr = `${yesterdayThai.getFullYear()}-${String(yesterdayThai.getMonth() + 1).padStart(2, '0')}-${String(yesterdayThai.getDate()).padStart(2, '0')}`;
   const currentMonthKey = getMonthKey(nowThai);
   const prevDate = new Date(nowThai); prevDate.setMonth(prevDate.getMonth() - 1);
   const prevMonthKey = getMonthKey(prevDate);
@@ -168,6 +170,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     kpis: {
       revenueToday: (startDate || endDate) ? revenuePeriod : revenueToday,
+      yesterdayRevenue: dailyRevenueMap[yesterdayStr] || 0,
       monthlyRevenue,
       prevMonthRevenue,
       newCustomers: (startDate || endDate) ? totalNew : (monthlyNew[currentMonthKey] || 0),
