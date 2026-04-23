@@ -150,7 +150,8 @@ export async function GET(req: NextRequest) {
     if (!serviceMap[tn]) serviceMap[tn] = { revenue: 0, visits: 0, category: cat };
     serviceMap[tn].revenue += revenue; serviceMap[tn].visits++;
 
-    if (v.sales_name) salesMap[v.sales_name] = (salesMap[v.sales_name] || 0) + revenue;
+    const sn = v.sales_name || 'ไม่ระบุ';
+    salesMap[sn] = (salesMap[sn] || 0) + revenue;
     const hn = v.hn ?? 'Unknown';
     if (!patientMap[hn]) patientMap[hn] = { revenue: 0, visits: 0 };
     patientMap[hn].revenue += revenue; patientMap[hn].visits++;
