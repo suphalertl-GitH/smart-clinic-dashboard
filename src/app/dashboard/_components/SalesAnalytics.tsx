@@ -5,7 +5,7 @@ import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
-import { Trophy, TrendingUp, TrendingDown, Check, Loader2 } from 'lucide-react';
+import { Trophy, TrendingUp, TrendingDown, Check, Loader2, Save, AlertCircle } from 'lucide-react';
 import { fmt, CAT_COLORS, themeChartColors } from './KpiCard';
 
 const SAGE = '#5FAD82';
@@ -23,6 +23,7 @@ export default function SalesAnalytics({ data, theme }: Props) {
   const [savedTargets, setSavedTargets] = useState<Record<string, number>>({});
   const [savingName, setSavingName] = useState<string | null>(null);
   const [savedName, setSavedName]   = useState<string | null>(null);
+  const [errorName, setErrorName]   = useState<{ name: string; msg: string } | null>(null);
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // โหลด target ที่ save ไว้ใน DB
@@ -43,7 +44,7 @@ export default function SalesAnalytics({ data, theme }: Props) {
   }, [salesRanking, savedTargets]);
 
   async function saveTarget(name: string, value: number) {
-    if (value === savedTargets[name]) return; // ไม่เปลี่ยน → ไม่ต้อง save
+    setErrorName(null);
     setSavingName(name);
     try {
       const res = await fetch('/api/sales-targets', {
@@ -55,8 +56,13 @@ export default function SalesAnalytics({ data, theme }: Props) {
         setSavedTargets(prev => ({ ...prev, [name]: value }));
         setSavedName(name);
         if (savedTimer.current) clearTimeout(savedTimer.current);
-        savedTimer.current = setTimeout(() => setSavedName(null), 1500);
+        savedTimer.current = setTimeout(() => setSavedName(null), 2000);
+      } else {
+        const j = await res.json().catch(() => ({}));
+        setErrorName({ name, msg: j?.error ?? `HTTP ${res.status}` });
       }
+    } catch (e: any) {
+      setErrorName({ name, msg: e?.message ?? 'Network error' });
     } finally {
       setSavingName(null);
     }
@@ -239,21 +245,41 @@ export default function SalesAnalytics({ data, theme }: Props) {
                           {fmt(s.revenue)}
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <input type="text" value={target.toLocaleString()}
-                              onChange={e => setTargets(prev => ({ ...prev, [s.name]: parseFloat(e.target.value.replace(/,/g, '')) || 0 }))}
-                              onBlur={() => saveTarget(s.name, target)}
-                              onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-                              className="w-full bg-transparent text-right font-medium text-slate-500 border-b border-transparent hover:border-slate-200 focus:border-teal-400 focus:outline-none p-1 text-sm"
-                            />
-                            <span className="w-4 h-4 flex items-center justify-center shrink-0">
-                              {savingName === s.name ? (
-                                <Loader2 size={12} className="text-slate-400 animate-spin" />
-                              ) : savedName === s.name ? (
-                                <Check size={12} className="text-emerald-500" />
-                              ) : null}
-                            </span>
-                          </div>
+                          {(() => {
+                            const dirty   = target !== (savedTargets[s.name] ?? s.target);
+                            const saving  = savingName === s.name;
+                            const success = savedName === s.name;
+                            const err     = errorName && errorName.name === s.name ? errorName.msg : null;
+                            return (
+                              <div className="flex items-center justify-end gap-1.5">
+                                <input type="text" value={target.toLocaleString()}
+                                  onChange={e => setTargets(prev => ({ ...prev, [s.name]: parseFloat(e.target.value.replace(/,/g, '')) || 0 }))}
+                                  onKeyDown={e => { if (e.key === 'Enter') saveTarget(s.name, target); }}
+                                  className="w-full bg-transparent text-right font-medium text-slate-500 border-b border-transparent hover:border-slate-200 focus:border-teal-400 focus:outline-none p-1 text-sm"
+                                />
+                                {err ? (
+                                  <span title={err} className="shrink-0 flex items-center">
+                                    <AlertCircle size={14} className="text-red-500" />
+                                  </span>
+                                ) : success && !dirty ? (
+                                  <span className="shrink-0 flex items-center" title="บันทึกแล้ว">
+                                    <Check size={14} className="text-emerald-500" />
+                                  </span>
+                                ) : (
+                                  <button type="button"
+                                    onClick={() => saveTarget(s.name, target)}
+                                    disabled={!dirty || saving}
+                                    title={dirty ? 'บันทึก' : 'ยังไม่มีการแก้ไข'}
+                                    className={`shrink-0 w-6 h-6 rounded-md flex items-center justify-center transition-colors ${
+                                      dirty ? 'text-teal-600 hover:bg-teal-50' : 'text-slate-300 cursor-default'
+                                    } disabled:opacity-60`}
+                                  >
+                                    {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
