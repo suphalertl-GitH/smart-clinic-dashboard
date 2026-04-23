@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { claudeComplete } from '@/lib/claude';
 import { supabaseAdmin } from '@/lib/supabase';
 import { requireFeature } from '@/lib/tier';
-
-const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
+import { getClinicId } from '@/lib/auth';
 
 // POST /api/ai-summary
 export async function POST(_req: NextRequest) {
-  const gate = await requireFeature(CLINIC_ID, 'ai_summary');
+  const clinicId = await getClinicId();
+  if (!clinicId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const gate = await requireFeature(clinicId, 'ai_summary');
   if (gate) return gate;
   try {
     // ดึงข้อมูลเดือนนี้
@@ -18,9 +19,9 @@ export async function POST(_req: NextRequest) {
 
     const [{ data: visits }, { data: patients }] = await Promise.all([
       supabaseAdmin.from('visits').select('hn, treatment_name, price, sales_name, doctor, payment_method, customer_type, created_at')
-        .eq('clinic_id', CLINIC_ID).gte('created_at', startOfMonthUTC.toISOString()).limit(500),
+        .eq('clinic_id', clinicId).gte('created_at', startOfMonthUTC.toISOString()).limit(500),
       supabaseAdmin.from('patients').select('source, sales_name, created_at')
-        .eq('clinic_id', CLINIC_ID).limit(500),
+        .eq('clinic_id', clinicId).limit(500),
     ]);
 
     // ── Pre-compute stats so AI doesn't have to calculate ──

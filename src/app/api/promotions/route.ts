@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { requireFeature } from '@/lib/tier';
-
-const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
+import { getClinicId } from '@/lib/auth';
 
 // GET /api/promotions
 export async function GET() {
-  const gate = await requireFeature(CLINIC_ID, 'promotions');
+  const clinicId = await getClinicId();
+  if (!clinicId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const gate = await requireFeature(clinicId, 'promotions');
   if (gate) return gate;
   const { data, error } = await supabaseAdmin
     .from('promotions')
     .select('*')
-    .eq('clinic_id', CLINIC_ID)
+    .eq('clinic_id', clinicId)
     .order('created_at', { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -20,7 +21,9 @@ export async function GET() {
 
 // POST /api/promotions — create new
 export async function POST(req: NextRequest) {
-  const gate = await requireFeature(CLINIC_ID, 'promotions');
+  const clinicId = await getClinicId();
+  if (!clinicId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const gate = await requireFeature(clinicId, 'promotions');
   if (gate) return gate;
   try {
     const body = await req.json();
@@ -33,7 +36,7 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabaseAdmin
       .from('promotions')
       .insert({
-        clinic_id: CLINIC_ID,
+        clinic_id: clinicId,
         title: title.trim(),
         description: description?.trim() ?? null,
         price: price?.trim() ?? null,

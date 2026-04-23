@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { getSessionUser } from '@/lib/auth';
-
-const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
+import { getClinicId } from '@/lib/auth';
 
 // GET /api/settings
 export async function GET() {
-  if (!(await getSessionUser())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const clinicId = await getClinicId();
+  if (!clinicId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { data, error } = await supabaseAdmin
     .from('settings')
     .select('*')
-    .eq('clinic_id', CLINIC_ID)
+    .eq('clinic_id', clinicId)
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -19,7 +18,8 @@ export async function GET() {
 
 // PATCH /api/settings — update one or more settings fields
 export async function PATCH(req: NextRequest) {
-  if (!(await getSessionUser())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const clinicId = await getClinicId();
+  if (!clinicId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   try {
     const body = await req.json();
 
@@ -37,7 +37,7 @@ export async function PATCH(req: NextRequest) {
     const { data, error } = await supabaseAdmin
       .from('settings')
       .update(update)
-      .eq('clinic_id', CLINIC_ID)
+      .eq('clinic_id', clinicId)
       .select()
       .single();
 

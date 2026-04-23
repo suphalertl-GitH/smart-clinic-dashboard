@@ -40,6 +40,31 @@ export async function getClinicId(): Promise<string | null> {
   return data?.clinic_id ?? null;
 }
 
+export type ClinicContext = { clinicId: string; clinicName: string; clinicPhone: string };
+
+/** ดึง clinic_id + name + phone สำหรับ route ที่ต้องส่ง LINE message */
+export async function getClinicContext(): Promise<ClinicContext | null> {
+  const cookieStore = await cookies();
+  const supabase = makeSupabaseServerClient(cookieStore);
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data } = await getSupabaseAdmin()
+    .from('clinic_users')
+    .select('clinic_id, clinics(name, phone)')
+    .eq('user_id', user.id)
+    .single();
+
+  if (!data) return null;
+  const clinic = data.clinics as unknown as { name: string; phone: string } | null;
+  return {
+    clinicId: data.clinic_id,
+    clinicName: clinic?.name ?? '',
+    clinicPhone: clinic?.phone ?? '',
+  };
+}
+
 /** ดึง user object ของ session ปัจจุบัน */
 export async function getSessionUser() {
   const cookieStore = await cookies();

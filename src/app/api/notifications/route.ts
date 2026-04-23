@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { pushMessage, appointmentReminderFlex } from '@/lib/line';
-
-const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
+import { getClinicId } from '@/lib/auth';
 
 const CLINIC = {
   name: 'พลอยใสคลินิก',
@@ -11,6 +10,8 @@ const CLINIC = {
 
 // POST /api/notifications/send — ส่งแจ้งเตือนทันที
 export async function POST(req: NextRequest) {
+  const clinicId = await getClinicId();
+  if (!clinicId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   try {
     const body = await req.json();
     const { appointmentId, lineUserId, type } = body;
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
 
     // บันทึกประวัติการส่ง
     await supabaseAdmin.from('notifications').insert({
-      clinic_id: CLINIC_ID,
+      clinic_id: clinicId,
       appointment_id: appointmentId || null,
       line_user_id: lineUserId,
       type,
@@ -66,12 +67,14 @@ export async function POST(req: NextRequest) {
 
 // GET /api/notifications — ดูประวัติการแจ้งเตือน
 export async function GET(req: NextRequest) {
+  const clinicId = await getClinicId();
+  if (!clinicId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const limit = parseInt(req.nextUrl.searchParams.get('limit') ?? '50');
 
   const { data, error } = await supabaseAdmin
     .from('notifications')
     .select('*')
-    .eq('clinic_id', CLINIC_ID)
+    .eq('clinic_id', clinicId)
     .order('created_at', { ascending: false })
     .limit(limit);
 

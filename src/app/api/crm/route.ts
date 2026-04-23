@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { requireFeature } from '@/lib/tier';
-
-const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
+import { getClinicId } from '@/lib/auth';
 
 // GET /api/crm — CRM overview + RFM segments
 export async function GET() {
-  const gate = await requireFeature(CLINIC_ID, 'crm');
+  const clinicId = await getClinicId();
+  if (!clinicId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const gate = await requireFeature(clinicId, 'crm');
   if (gate) return gate;
   try {
     const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
@@ -15,13 +16,13 @@ export async function GET() {
     const { data: patients } = await supabaseAdmin
       .from('patients')
       .select('id, hn, full_name, loyalty_tier, points, lifetime_spending, created_at, line_user_id')
-      .eq('clinic_id', CLINIC_ID);
+      .eq('clinic_id', clinicId);
 
     // ดึง visits ทั้งหมด
     const { data: allVisits } = await supabaseAdmin
       .from('visits')
       .select('hn, price, created_at')
-      .eq('clinic_id', CLINIC_ID)
+      .eq('clinic_id', clinicId)
       .order('created_at', { ascending: false });
 
     // ── Tier summary ──
@@ -100,7 +101,7 @@ export async function GET() {
     const { data: campaigns } = await supabaseAdmin
       .from('campaigns')
       .select('id, name, sent_count, sent_at, target_tier, created_at')
-      .eq('clinic_id', CLINIC_ID)
+      .eq('clinic_id', clinicId)
       .order('created_at', { ascending: false })
       .limit(10);
 
@@ -108,7 +109,7 @@ export async function GET() {
     const { data: surveys } = await supabaseAdmin
       .from('satisfaction_surveys')
       .select('score, created_at')
-      .eq('clinic_id', CLINIC_ID);
+      .eq('clinic_id', clinicId);
 
     const avgScore = surveys && surveys.length > 0
       ? surveys.reduce((sum, s) => sum + s.score, 0) / surveys.length
@@ -150,7 +151,7 @@ export async function GET() {
     const { data: newThisMonth } = await supabaseAdmin
       .from('visits')
       .select('hn')
-      .eq('clinic_id', CLINIC_ID)
+      .eq('clinic_id', clinicId)
       .eq('customer_type', 'new')
       .gte('created_at', startOfMonth.toISOString());
     const newThisMonthCount = new Set((newThisMonth ?? []).map(v => v.hn)).size;
@@ -168,13 +169,13 @@ export async function GET() {
     const { data: pastAppts } = await supabaseAdmin
       .from('appointments')
       .select('hn, date')
-      .eq('clinic_id', CLINIC_ID)
+      .eq('clinic_id', clinicId)
       .lt('date', now.toISOString().split('T')[0]);
 
     const { data: visitDates } = await supabaseAdmin
       .from('visits')
       .select('hn, appt_date')
-      .eq('clinic_id', CLINIC_ID)
+      .eq('clinic_id', clinicId)
       .not('appt_date', 'is', null);
 
     const visitedApptKeys = new Set((visitDates ?? []).map(v => `${v.hn}:${v.appt_date}`));

@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { getSessionUser } from '@/lib/auth';
+import { getClinicId } from '@/lib/auth';
 import { requireFeature } from '@/lib/tier';
-
-const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
 
 // GET /api/commissions?month=2026-04
 export async function GET(req: NextRequest) {
-  if (!(await getSessionUser())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const gate = await requireFeature(CLINIC_ID, 'commission_calculator');
+  const clinicId = await getClinicId();
+  if (!clinicId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const gate = await requireFeature(clinicId, 'commission_calculator');
   if (gate) return gate;
 
   const month = req.nextUrl.searchParams.get('month') ?? new Date().toISOString().slice(0, 7);
@@ -20,17 +19,17 @@ export async function GET(req: NextRequest) {
     supabaseAdmin
       .from('commission_rules')
       .select('sales_name, rate')
-      .eq('clinic_id', CLINIC_ID),
+      .eq('clinic_id', clinicId),
     supabaseAdmin
       .from('visits')
       .select('sales_name, price')
-      .eq('clinic_id', CLINIC_ID)
+      .eq('clinic_id', clinicId)
       .gte('created_at', startDate)
       .lte('created_at', endDate + 'T23:59:59'),
     supabaseAdmin
       .from('settings')
       .select('sales_names')
-      .eq('clinic_id', CLINIC_ID)
+      .eq('clinic_id', clinicId)
       .single(),
   ]);
 
@@ -72,15 +71,16 @@ export async function GET(req: NextRequest) {
 
 // POST /api/commissions — upsert commission rates
 export async function POST(req: NextRequest) {
-  if (!(await getSessionUser())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const gate = await requireFeature(CLINIC_ID, 'commission_calculator');
+  const clinicId = await getClinicId();
+  if (!clinicId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const gate = await requireFeature(clinicId, 'commission_calculator');
   if (gate) return gate;
 
   const body = await req.json() as { sales_name: string; rate: number }[];
   if (!Array.isArray(body)) return NextResponse.json({ error: 'invalid body' }, { status: 400 });
 
   const upserts = body.map(({ sales_name, rate }) => ({
-    clinic_id: CLINIC_ID,
+    clinic_id: clinicId,
     sales_name: sales_name.trim(),
     rate: Math.min(100, Math.max(0, Number(rate))),
   }));

@@ -3,12 +3,13 @@ import { NextRequest, NextResponse } from 'next/server';
 const generatePayload = require('promptpay-qr');
 import QRCode from 'qrcode';
 import { requireFeature } from '@/lib/tier';
-
-const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
+import { getClinicId } from '@/lib/auth';
 
 // GET /api/promptpay?amount=1500
 export async function GET(req: NextRequest) {
-  const gate = await requireFeature(CLINIC_ID, 'promptpay');
+  const clinicId = await getClinicId();
+  if (!clinicId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const gate = await requireFeature(clinicId, 'promptpay');
   if (gate) return gate;
 
   const amount = parseFloat(req.nextUrl.searchParams.get('amount') ?? '0');

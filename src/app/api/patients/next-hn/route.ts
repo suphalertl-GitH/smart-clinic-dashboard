@@ -1,14 +1,15 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-
-const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
+import { getClinicId } from '@/lib/auth';
 
 // GET /api/patients/next-hn
 export async function GET() {
+  const clinicId = await getClinicId();
+  if (!clinicId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { data } = await supabaseAdmin
     .from('patients')
     .select('hn')
-    .eq('clinic_id', CLINIC_ID)
+    .eq('clinic_id', clinicId)
     .order('created_at', { ascending: false })
     .limit(1)
     .single();

@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { claudeComplete } from '@/lib/claude';
 import { requireFeature } from '@/lib/tier';
-
-const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
+import { getClinicId } from '@/lib/auth';
 
 function getThaiNow() {
   return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
@@ -36,7 +35,9 @@ function linearForecast(values: number[], futureN = 3): { trend: number[]; futur
 
 // GET /api/predictive
 export async function GET(req: NextRequest) {
-  const gate = await requireFeature(CLINIC_ID, 'predictive');
+  const clinicId = await getClinicId();
+  if (!clinicId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const gate = await requireFeature(clinicId, 'predictive');
   if (gate) return gate;
 
   const force = req.nextUrl.searchParams.get('force') === '1';
@@ -46,9 +47,9 @@ export async function GET(req: NextRequest) {
 
     // ── Fetch raw data (visits + appointments only, no patients query) ──
     const [{ data: visits }, { data: appointments }, { data: settings }] = await Promise.all([
-      supabaseAdmin.from('visits').select('hn, price, treatment_name, created_at').eq('clinic_id', CLINIC_ID).limit(5000),
-      supabaseAdmin.from('appointments').select('hn, name').eq('clinic_id', CLINIC_ID).limit(2000),
-      supabaseAdmin.from('settings').select('treatment_cycles').eq('clinic_id', CLINIC_ID).single(),
+      supabaseAdmin.from('visits').select('hn, price, treatment_name, created_at').eq('clinic_id', clinicId).limit(5000),
+      supabaseAdmin.from('appointments').select('hn, name').eq('clinic_id', clinicId).limit(2000),
+      supabaseAdmin.from('settings').select('treatment_cycles').eq('clinic_id', clinicId).single(),
     ]);
 
     // hn → name lookup: visits ก่อน ถ้าไม่มีให้ใช้ appointments

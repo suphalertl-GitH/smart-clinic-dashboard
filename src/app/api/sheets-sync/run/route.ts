@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
-const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
 const SHEET_ID  = '1OAMPO528LmZZb2x389-RweCGtdRHLsfu_t9csfzdjPw';
 const GID_PAT   = '0';
 const GID_VISIT = '765833505';
@@ -82,7 +81,7 @@ async function fetchCSV(gid: string): Promise<string> {
 }
 
 // ─── Sync functions ───────────────────────────────────────────
-async function syncPatients(patRows: Record<string, string>[], filterToday?: string) {
+async function syncPatients(clinicId: string, patRows: Record<string, string>[], filterToday?: string) {
   const patients = patRows
     .filter(r => {
       const hn = String(r['HN'] || '').trim();
@@ -105,7 +104,7 @@ async function syncPatients(patRows: Record<string, string>[], filterToday?: str
 
   let updated = 0;
   for (let b = 0; b < patients.length; b += BATCH) {
-    const chunk = patients.slice(b, b + BATCH).map(p => ({ clinic_id: CLINIC_ID, ...p }));
+    const chunk = patients.slice(b, b + BATCH).map(p => ({ clinic_id: clinicId, ...p }));
     const { error } = await supabaseAdmin.from('patients').upsert(chunk, { onConflict: 'clinic_id,hn' });
     if (error) console.error('patient batch error:', error.message);
     else updated += chunk.length;
@@ -113,7 +112,7 @@ async function syncPatients(patRows: Record<string, string>[], filterToday?: str
   return { total: patients.length, updated };
 }
 
-async function syncVisits(visRows: Record<string, string>[], filterToday?: string) {
+async function syncVisits(clinicId: string, visRows: Record<string, string>[], filterToday?: string) {
   const visits = visRows.filter(r => {
     if (price(r['ยอดรวม'] || r['ราคา']) <= 0) return false;
     if (filterToday) return matchDate(r['Timestamp'], filterToday);
@@ -127,7 +126,7 @@ async function syncVisits(visRows: Record<string, string>[], filterToday?: strin
     const p = price(r['ยอดรวม'] || r['ราคา']);
 
     const { data: patient } = await supabaseAdmin
-      .from('patients').select('id').eq('clinic_id', CLINIC_ID).eq('hn', hn).maybeSingle();
+      .from('patients').select('id').eq('clinic_id', clinicId).eq('hn', hn).maybeSingle();
 
     const visitDate = parseThaiDate(r['Timestamp']);
 
@@ -143,7 +142,7 @@ async function syncVisits(visRows: Record<string, string>[], filterToday?: strin
     const visitName = s(r['ชื่อ']) || null;
 
     const row: any = {
-      clinic_id:      CLINIC_ID,
+      clinic_id:      clinicId,
       patient_id:     patient?.id || null,
       hn,
       name:           visitName,
@@ -164,7 +163,7 @@ async function syncVisits(visRows: Record<string, string>[], filterToday?: strin
     // dedup: หา candidates ด้วย hn + treatment + price + date ก่อน
     // แล้วค่อย match ด้วย name เพื่อแยกลูกค้าคนละคนที่ไม่มี HN
     let dedupQ = supabaseAdmin.from('visits').select('id, customer_type, name')
-      .eq('clinic_id', CLINIC_ID).eq('hn', hn)
+      .eq('clinic_id', clinicId).eq('hn', hn)
       .eq('treatment_name', treatmentName).eq('price', p);
     if (dedupStart && dedupEnd) dedupQ = dedupQ.gte('created_at', dedupStart).lte('created_at', dedupEnd);
     const { data: candidates } = await dedupQ;
@@ -198,7 +197,7 @@ async function syncVisits(visRows: Record<string, string>[], filterToday?: strin
   return { total: visits.length, added, updated };
 }
 
-async function syncAppointments(visRows: Record<string, string>[], filterToday?: string) {
+async function syncAppointments(clinicId: string, visRows: Record<string, string>[], filterToday?: string) {
   const appts = visRows.filter(r => {
     const d = r['วันที่นัดหมาย (Appointment_Date)'] || r['วันที่นัดหมาย'];
     if (!d || !String(d).trim()) return false;
@@ -214,10 +213,10 @@ async function syncAppointments(visRows: Record<string, string>[], filterToday?:
     const apptTime = s(r['เวลานัดหมาย (Appointment_Time)'] || r['เวลานัดหมาย']) || '11:00';
 
     const { data: patient } = await supabaseAdmin
-      .from('patients').select('id').eq('clinic_id', CLINIC_ID).eq('hn', hn).maybeSingle();
+      .from('patients').select('id').eq('clinic_id', clinicId).eq('hn', hn).maybeSingle();
 
     const row: any = {
-      clinic_id:     CLINIC_ID,
+      clinic_id:     clinicId,
       patient_id:    patient?.id || null,
       hn,
       name:          s(r['ชื่อ']) || hn || 'ไม่ระบุ',
@@ -234,7 +233,7 @@ async function syncAppointments(visRows: Record<string, string>[], filterToday?:
 
     const { data: existing } = await supabaseAdmin
       .from('appointments').select('id')
-      .eq('clinic_id', CLINIC_ID).eq('date', apptDate).eq('time', apptTime).eq('hn', hn).limit(1);
+      .eq('clinic_id', clinicId).eq('date', apptDate).eq('time', apptTime).eq('hn', hn).limit(1);
 
     if (existing && existing.length > 0) {
       await supabaseAdmin.from('appointments').update(row).eq('id', existing[0].id);
@@ -253,11 +252,15 @@ export async function POST(req: NextRequest) {
   const authHeader = req.headers.get('authorization');
   const CRON_SECRET = process.env.CRON_SECRET ?? 'clinic2026secret';
   const hasCronAuth = authHeader === `Bearer ${CRON_SECRET}`;
+  let clinicId: string | null = null;
   if (!hasCronAuth) {
-    const { getSessionUser } = await import('@/lib/auth');
-    if (!(await getSessionUser())) {
+    const { getClinicId } = await import('@/lib/auth');
+    clinicId = await getClinicId();
+    if (!clinicId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+  } else {
+    clinicId = process.env.CLINIC_ID ?? 'a0000000-0000-0000-0000-000000000001';
   }
   try {
     const body = await req.json().catch(() => ({}));
@@ -269,9 +272,9 @@ export async function POST(req: NextRequest) {
     const visRows = parseCSV(visCSV);
 
     const [patients, visits, appointments] = await Promise.all([
-      syncPatients(patRows, filterToday),
-      syncVisits(visRows, filterToday),
-      syncAppointments(visRows, filterToday),
+      syncPatients(clinicId, patRows, filterToday),
+      syncVisits(clinicId, visRows, filterToday),
+      syncAppointments(clinicId, visRows, filterToday),
     ]);
 
     return NextResponse.json({ success: true, mode, filterToday, stats: { patients, visits, appointments } });

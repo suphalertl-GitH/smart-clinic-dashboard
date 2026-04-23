@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { getSessionUser } from '@/lib/auth';
+import { getClinicId } from '@/lib/auth';
 import { requireFeature } from '@/lib/tier';
-
-const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
 
 // GET /api/courses?status=active&search=
 export async function GET(req: NextRequest) {
-  if (!(await getSessionUser())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const gate = await requireFeature(CLINIC_ID, 'course_tracker');
+  const clinicId = await getClinicId();
+  if (!clinicId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const gate = await requireFeature(clinicId, 'course_tracker');
   if (gate) return gate;
 
   const status = req.nextUrl.searchParams.get('status') ?? 'active';
@@ -17,7 +16,7 @@ export async function GET(req: NextRequest) {
   let query = supabaseAdmin
     .from('treatment_courses')
     .select('*')
-    .eq('clinic_id', CLINIC_ID)
+    .eq('clinic_id', clinicId)
     .order('created_at', { ascending: false })
     .limit(200);
 
@@ -31,8 +30,9 @@ export async function GET(req: NextRequest) {
 
 // POST /api/courses — สร้างคอร์สใหม่
 export async function POST(req: NextRequest) {
-  if (!(await getSessionUser())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const gate = await requireFeature(CLINIC_ID, 'course_tracker');
+  const clinicId = await getClinicId();
+  if (!clinicId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const gate = await requireFeature(clinicId, 'course_tracker');
   if (gate) return gate;
 
   const body = await req.json();
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
   const { data, error } = await supabaseAdmin
     .from('treatment_courses')
     .insert({
-      clinic_id: CLINIC_ID,
+      clinic_id: clinicId,
       patient_id: patient_id ?? null,
       hn,
       patient_name,

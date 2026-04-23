@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { put } from '@vercel/blob';
 import { pushMessage, textMessage } from '@/lib/line';
-
-const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
+import { getClinicId } from '@/lib/auth';
 
 const CLINIC_INFO = {
   name: 'Ploysai Clinic',
@@ -103,6 +102,8 @@ function generateReceiptHtml(data: {
 
 // POST /api/receipts — สร้างใบเสร็จ PDF
 export async function POST(req: NextRequest) {
+  const clinicId = await getClinicId();
+  if (!clinicId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   try {
     const body = await req.json();
     const { hn, fullName, items, total, payment, receiver, date, visitId, lineUserId } = body;
@@ -125,7 +126,7 @@ export async function POST(req: NextRequest) {
     const { data: receipt, error } = await supabaseAdmin
       .from('receipts')
       .insert({
-        clinic_id: CLINIC_ID,
+        clinic_id: clinicId,
         visit_id: visitId || null,
         hn,
         full_name: fullName,
@@ -156,6 +157,8 @@ export async function POST(req: NextRequest) {
 
 // GET /api/receipts?hn=HN00001&date=2024-01-01
 export async function GET(req: NextRequest) {
+  const clinicId = await getClinicId();
+  if (!clinicId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const hn = req.nextUrl.searchParams.get('hn');
   const date = req.nextUrl.searchParams.get('date');
 
@@ -164,7 +167,7 @@ export async function GET(req: NextRequest) {
   let query = supabaseAdmin
     .from('receipts')
     .select('*')
-    .eq('clinic_id', CLINIC_ID)
+    .eq('clinic_id', clinicId)
     .eq('hn', hn)
     .order('created_at', { ascending: false });
 

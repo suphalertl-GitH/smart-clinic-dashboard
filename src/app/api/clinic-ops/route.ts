@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { getSessionUser } from '@/lib/auth';
+import { getClinicId } from '@/lib/auth';
 
-const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const HOURS = ['08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00'];
 
 
 // GET /api/clinic-ops?startDate=...&endDate=...
 export async function GET(req: NextRequest) {
-  if (!(await getSessionUser())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const clinicId = await getClinicId();
+  if (!clinicId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const startDate = req.nextUrl.searchParams.get('startDate');
   const endDate = req.nextUrl.searchParams.get('endDate');
 
-  let query = supabaseAdmin.from('appointments').select('*').eq('clinic_id', CLINIC_ID).limit(5000);
+  let query = supabaseAdmin.from('appointments').select('*').eq('clinic_id', clinicId).limit(5000);
   if (startDate) query = query.gte('date', startDate);
   if (endDate) query = query.lte('date', endDate);
 
@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
 
   // Doctor workload — ดึงจาก visits table (มี doctor field จาก sheet sync)
   // เพราะ appointments table ไม่มี column doctor
-  let visitsQuery = supabaseAdmin.from('visits').select('doctor').eq('clinic_id', CLINIC_ID).limit(5000);
+  let visitsQuery = supabaseAdmin.from('visits').select('doctor').eq('clinic_id', clinicId).limit(5000);
   if (startDate) visitsQuery = visitsQuery.gte('visit_date', startDate);
   if (endDate)   visitsQuery = visitsQuery.lte('visit_date', endDate);
   const { data: visitsData } = await visitsQuery;
@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
   const [peakDayStr, peakHour] = peakKey.split('-');
 
   // Doctor workload — ใช้ doctor_names จาก settings + นับจาก visits จริง
-  const { data: settingsData } = await supabaseAdmin.from('settings').select('doctor_names').eq('clinic_id', CLINIC_ID).single();
+  const { data: settingsData } = await supabaseAdmin.from('settings').select('doctor_names').eq('clinic_id', clinicId).single();
   const doctorNames: string[] = settingsData?.doctor_names ?? [];
 
   // รวมทุกชื่อหมอที่ปรากฏใน appointments (รวม "ไม่ระบุแพทย์") + ชื่อจาก settings

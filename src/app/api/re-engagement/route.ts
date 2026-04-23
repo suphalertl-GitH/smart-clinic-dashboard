@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { getSessionUser } from '@/lib/auth';
+import { getClinicContext } from '@/lib/auth';
 import { requireFeature } from '@/lib/tier';
 import { pushMessage, flexMessage } from '@/lib/line';
-
-const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
-const CLINIC = { name: 'พลอยใสคลินิก', phone: '065-553-9361' };
 
 type PatientRow = {
   id: string;
@@ -23,8 +20,10 @@ type VisitRow = {
 // GET /api/re-engagement?days=90
 // คืน list คนไข้ที่ไม่มา visit เกิน N วัน
 export async function GET(req: NextRequest) {
-  if (!(await getSessionUser())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const gate = await requireFeature(CLINIC_ID, 're_engagement');
+  const ctx = await getClinicContext();
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { clinicId } = ctx;
+  const gate = await requireFeature(clinicId, 're_engagement');
   if (gate) return gate;
 
   const days = Math.max(1, parseInt(req.nextUrl.searchParams.get('days') ?? '90'));
@@ -36,12 +35,12 @@ export async function GET(req: NextRequest) {
     supabaseAdmin
       .from('patients')
       .select('id, hn, full_name, phone, line_user_id')
-      .eq('clinic_id', CLINIC_ID)
+      .eq('clinic_id', clinicId)
       .order('full_name'),
     supabaseAdmin
       .from('visits')
       .select('patient_id, created_at')
-      .eq('clinic_id', CLINIC_ID)
+      .eq('clinic_id', clinicId)
       .order('created_at', { ascending: false }),
   ]);
 
@@ -67,8 +66,10 @@ export async function GET(req: NextRequest) {
 
 // POST /api/re-engagement — ส่ง LINE ให้คนไข้ที่เลือก
 export async function POST(req: NextRequest) {
-  if (!(await getSessionUser())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const gate = await requireFeature(CLINIC_ID, 're_engagement');
+  const ctx = await getClinicContext();
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { clinicId, clinicName, clinicPhone } = ctx;
+  const gate = await requireFeature(clinicId, 're_engagement');
   if (gate) return gate;
 
   const body = await req.json() as {
@@ -83,7 +84,7 @@ export async function POST(req: NextRequest) {
   const { data: patients } = await supabaseAdmin
     .from('patients')
     .select('id, hn, full_name, line_user_id')
-    .eq('clinic_id', CLINIC_ID)
+    .eq('clinic_id', clinicId)
     .in('id', body.patient_ids);
 
   const scheduledAt = new Date().toISOString();
@@ -96,16 +97,16 @@ export async function POST(req: NextRequest) {
     const msgText = body.message_template
       .replace('{name}', p.full_name)
       .replace('{hn}', p.hn)
-      .replace('{clinic}', CLINIC.name)
-      .replace('{phone}', CLINIC.phone);
+      .replace('{clinic}', clinicName)
+      .replace('{phone}', clinicPhone);
 
-    const lineMsg = flexMessage(`${CLINIC.name} — นัดมาดูแลตัวเองนะคะ`, {
+    const lineMsg = flexMessage(`${clinicName} — นัดมาดูแลตัวเองนะคะ`, {
       type: 'bubble',
       header: {
         type: 'box', layout: 'vertical', backgroundColor: '#0f4c5c',
         contents: [
           { type: 'text', text: '💌 ข่าวสารจากคลินิก', color: '#ffffff', weight: 'bold', size: 'md' },
-          { type: 'text', text: CLINIC.name, color: '#ffffff80', size: 'sm' },
+          { type: 'text', text: clinicName, color: '#ffffff80', size: 'sm' },
         ],
       },
       body: {
@@ -114,7 +115,7 @@ export async function POST(req: NextRequest) {
           { type: 'text', text: `สวัสดีคุณ ${p.full_name} 😊`, weight: 'bold', size: 'md' },
           { type: 'text', text: msgText, wrap: true, color: '#555555', size: 'sm' },
           { type: 'separator', margin: 'lg' },
-          { type: 'text', text: `📞 ติดต่อ: ${CLINIC.phone}`, color: '#888888', size: 'xs', margin: 'md' },
+          { type: 'text', text: `📞 ติดต่อ: ${clinicPhone}`, color: '#888888', size: 'xs', margin: 'md' },
         ],
       },
       footer: {
@@ -130,7 +131,7 @@ export async function POST(req: NextRequest) {
       await pushMessage(p.line_user_id, [lineMsg]);
       results.sent++;
       notifications.push({
-        clinic_id: CLINIC_ID,
+        clinic_id: clinicId,
         patient_id: p.id,
         type: 'marketing',
         line_user_id: p.line_user_id,

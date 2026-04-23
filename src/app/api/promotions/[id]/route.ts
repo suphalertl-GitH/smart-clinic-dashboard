@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { requireFeature } from '@/lib/tier';
-
-const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
+import { getClinicId } from '@/lib/auth';
 
 // PATCH /api/promotions/[id] — update fields
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const gate = await requireFeature(CLINIC_ID, 'promotions');
+  const clinicId = await getClinicId();
+  if (!clinicId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const gate = await requireFeature(clinicId, 'promotions');
   if (gate) return gate;
   try {
     const body = await req.json();
@@ -23,7 +24,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       .from('promotions')
       .update(update)
       .eq('id', id)
-      .eq('clinic_id', CLINIC_ID)
+      .eq('clinic_id', clinicId)
       .select()
       .single();
 
@@ -36,14 +37,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
 // DELETE /api/promotions/[id]
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const gate = await requireFeature(CLINIC_ID, 'promotions');
+  const clinicId = await getClinicId();
+  if (!clinicId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const gate = await requireFeature(clinicId, 'promotions');
   if (gate) return gate;
   const { id } = await params;
   const { error } = await supabaseAdmin
     .from('promotions')
     .delete()
     .eq('id', id)
-    .eq('clinic_id', CLINIC_ID);
+    .eq('clinic_id', clinicId);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });

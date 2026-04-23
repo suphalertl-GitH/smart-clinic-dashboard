@@ -1,18 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { pushGroupMessage, textMessage } from '@/lib/line';
-
-const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
+import { getClinicId } from '@/lib/auth';
 
 // GET /api/appointments?date=2024-01-01
 export async function GET(req: NextRequest) {
+  const clinicId = await getClinicId();
+  if (!clinicId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const date = req.nextUrl.searchParams.get('date');
   if (!date) return NextResponse.json({ error: 'date required' }, { status: 400 });
 
   const { data, error } = await supabaseAdmin
     .from('appointments')
     .select('*')
-    .eq('clinic_id', CLINIC_ID)
+    .eq('clinic_id', clinicId)
     .eq('date', date)
     .order('time', { ascending: true });
 
@@ -22,6 +23,8 @@ export async function GET(req: NextRequest) {
 
 // POST /api/appointments — เพิ่มคิวใหม่
 export async function POST(req: NextRequest) {
+  const clinicId = await getClinicId();
+  if (!clinicId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   try {
     const body = await req.json();
     const { date, time, name, hn, phone, salesName, status, procedure, note, overrideReason } = body;
@@ -35,7 +38,7 @@ export async function POST(req: NextRequest) {
       const { data: conflict } = await supabaseAdmin
         .from('appointments')
         .select('id, name')
-        .eq('clinic_id', CLINIC_ID)
+        .eq('clinic_id', clinicId)
         .eq('date', date)
         .eq('time', time);
 
@@ -55,7 +58,7 @@ export async function POST(req: NextRequest) {
       const { data: patient } = await supabaseAdmin
         .from('patients')
         .select('id')
-        .eq('clinic_id', CLINIC_ID)
+        .eq('clinic_id', clinicId)
         .eq('hn', hn)
         .single();
       if (patient) patientId = patient.id;
@@ -66,7 +69,7 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabaseAdmin
       .from('appointments')
       .insert({
-        clinic_id: CLINIC_ID,
+        clinic_id: clinicId,
         patient_id: patientId,
         hn: hn || null,
         name,

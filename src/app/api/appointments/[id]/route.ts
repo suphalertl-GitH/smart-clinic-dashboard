@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-
-const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
+import { getClinicId } from '@/lib/auth';
 
 // PUT /api/appointments/[id] — แก้ไขนัดหมาย
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const clinicId = await getClinicId();
+  if (!clinicId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   try {
     const { id } = await params;
     const body = await req.json();
@@ -15,7 +16,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       const { data: conflict } = await supabaseAdmin
         .from('appointments')
         .select('id, name')
-        .eq('clinic_id', CLINIC_ID)
+        .eq('clinic_id', clinicId)
         .eq('date', date)
         .eq('time', time)
         .neq('id', id);
@@ -47,7 +48,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       .from('appointments')
       .update(updateData)
       .eq('id', id)
-      .eq('clinic_id', CLINIC_ID)
+      .eq('clinic_id', clinicId)
       .select()
       .single();
 
@@ -60,6 +61,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
 // DELETE /api/appointments/[id] — ยกเลิกนัดหมาย
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const clinicId = await getClinicId();
+  if (!clinicId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   try {
     const { id } = await params;
 
@@ -67,14 +70,14 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
       .from('appointments')
       .select('name')
       .eq('id', id)
-      .eq('clinic_id', CLINIC_ID)
+      .eq('clinic_id', clinicId)
       .single();
 
     const { error } = await supabaseAdmin
       .from('appointments')
       .delete()
       .eq('id', id)
-      .eq('clinic_id', CLINIC_ID);
+      .eq('clinic_id', clinicId);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true, message: `ยกเลิกนัดคุณ ${appt?.name ?? ''} เรียบร้อย 🗑️` });

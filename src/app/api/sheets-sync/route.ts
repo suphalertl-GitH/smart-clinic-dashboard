@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
-const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
+const CLINIC_ID = process.env.CLINIC_ID ?? 'a0000000-0000-0000-0000-000000000001';
 const SYNC_SECRET = process.env.CRON_SECRET ?? 'clinic2026secret';
 
 // POST /api/sheets-sync — รับข้อมูลจาก Google Apps Script

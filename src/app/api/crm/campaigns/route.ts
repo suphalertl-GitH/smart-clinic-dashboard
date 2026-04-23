@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { pushMessage, textMessage } from '@/lib/line';
 import { requireFeature } from '@/lib/tier';
-
-const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
+import { getClinicId } from '@/lib/auth';
 
 // GET /api/crm/campaigns — ดึงรายการ campaigns + preview กลุ่มเป้าหมาย
 export async function GET(req: NextRequest) {
-  const gate = await requireFeature(CLINIC_ID, 'crm');
+  const clinicId = await getClinicId();
+  if (!clinicId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const gate = await requireFeature(clinicId, 'crm');
   if (gate) return gate;
   const preview = req.nextUrl.searchParams.get('preview');
   const targetTier = req.nextUrl.searchParams.get('tier') ?? null;
@@ -16,14 +17,14 @@ export async function GET(req: NextRequest) {
 
   if (preview === '1') {
     // นับจำนวนคนที่จะได้รับ campaign
-    const count = await countTargets({ targetTier, targetTreatment, minDays: minDays ? parseInt(minDays) : null });
+    const count = await countTargets(clinicId, { targetTier, targetTreatment, minDays: minDays ? parseInt(minDays) : null });
     return NextResponse.json({ count });
   }
 
   const { data, error } = await supabaseAdmin
     .from('campaigns')
     .select('*')
-    .eq('clinic_id', CLINIC_ID)
+    .eq('clinic_id', clinicId)
     .order('created_at', { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -32,7 +33,9 @@ export async function GET(req: NextRequest) {
 
 // POST /api/crm/campaigns — สร้าง campaign ใหม่และส่ง LINE ทันที
 export async function POST(req: NextRequest) {
-  const gate = await requireFeature(CLINIC_ID, 'crm');
+  const clinicId = await getClinicId();
+  if (!clinicId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const gate = await requireFeature(clinicId, 'crm');
   if (gate) return gate;
   try {
     const body = await req.json();
@@ -43,13 +46,13 @@ export async function POST(req: NextRequest) {
     }
 
     // หากลุ่มเป้าหมาย
-    const targets = await getTargets({ targetTier, targetTreatment, minDays: minDays ?? null });
+    const targets = await getTargets(clinicId, { targetTier, targetTreatment, minDays: minDays ?? null });
 
     // สร้าง campaign record
     const { data: campaign, error: campErr } = await supabaseAdmin
       .from('campaigns')
       .insert({
-        clinic_id: CLINIC_ID,
+        clinic_id: clinicId,
         name,
         message,
         target_tier: targetTier ?? null,
@@ -72,7 +75,7 @@ export async function POST(req: NextRequest) {
 
         // บันทึกใน notifications
         await supabaseAdmin.from('notifications').insert({
-          clinic_id: CLINIC_ID,
+          clinic_id: clinicId,
           appointment_id: null,
           patient_id: null,
           line_user_id: patient.line_user_id,
@@ -97,7 +100,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function getTargets(filters: {
+async function getTargets(clinicId: string, filters: {
   targetTier: string | null;
   targetTreatment: string | null;
   minDays: number | null;
@@ -105,7 +108,7 @@ async function getTargets(filters: {
   let query = supabaseAdmin
     .from('patients')
     .select('hn, full_name, line_user_id, loyalty_tier')
-    .eq('clinic_id', CLINIC_ID)
+    .eq('clinic_id', clinicId)
     .not('line_user_id', 'is', null);
 
   if (filters.targetTier) {
@@ -122,7 +125,7 @@ async function getTargets(filters: {
     const { data: recentVisits } = await supabaseAdmin
       .from('visits')
       .select('hn')
-      .eq('clinic_id', CLINIC_ID)
+      .eq('clinic_id', clinicId)
       .gte('created_at', cutoff.toISOString());
 
     const recentHns = new Set((recentVisits ?? []).map(v => v.hn));
@@ -134,7 +137,7 @@ async function getTargets(filters: {
     const { data: treatVisits } = await supabaseAdmin
       .from('visits')
       .select('hn')
-      .eq('clinic_id', CLINIC_ID)
+      .eq('clinic_id', clinicId)
       .ilike('treatment_name', `%${filters.targetTreatment}%`);
 
     const treatHns = new Set((treatVisits ?? []).map(v => v.hn));
@@ -144,11 +147,11 @@ async function getTargets(filters: {
   return patients;
 }
 
-async function countTargets(filters: {
+async function countTargets(clinicId: string, filters: {
   targetTier: string | null;
   targetTreatment: string | null;
   minDays: number | null;
 }) {
-  const targets = await getTargets(filters);
+  const targets = await getTargets(clinicId, filters);
   return targets.filter(p => p.line_user_id).length;
 }

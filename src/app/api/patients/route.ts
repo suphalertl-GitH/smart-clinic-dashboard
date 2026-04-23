@@ -4,7 +4,7 @@ import { pushGroupMessage, textMessage } from '@/lib/line';
 import { getClinicId } from '@/lib/auth';
 
 // hardcoded fallback สำหรับ LIFF (patient self-registration)
-const CLINIC_ID = 'a0000000-0000-0000-0000-000000000001';
+const CLINIC_ID = process.env.CLINIC_ID ?? 'a0000000-0000-0000-0000-000000000001';
 
 // GET /api/patients?search=HN00001 — dashboard only (ต้อง login)
 export async function GET(req: NextRequest) {
