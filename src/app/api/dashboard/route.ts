@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
   const [allVisits, allPatients, { data: clinicRow }, enabledFeatures] = await Promise.all([
     fetchAll('visits', clinic_id),
     fetchAll('patients', clinic_id),
-    supabaseAdmin.from('clinics').select('tier').eq('id', clinic_id).single(),
+    supabaseAdmin.from('clinics').select('tier, name').eq('id', clinic_id).single(),
     getEnabledFeatures(clinic_id),
   ]);
 
@@ -256,6 +256,7 @@ export async function GET(req: NextRequest) {
     channelPerformance: Object.entries(sourceMap).sort(([, a], [, b]) => b - a).slice(0, 6).map(([source, count]) => ({ source, count })),
     lastUpdated: getThaiNow().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
     tier: clinicRow?.tier ?? 'starter',
+    clinicName: clinicRow?.name ?? '',
     enabled_features: enabledFeatures,
   });
 }

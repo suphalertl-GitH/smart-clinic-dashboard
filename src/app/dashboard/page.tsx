@@ -6,6 +6,7 @@ import {
   Activity, RefreshCw, LayoutDashboard, BarChart2, Users,
   Megaphone, Bell, Search, LogOut, HeartPulse,
   Brain, Tag, Menu, X, ChevronRight, Settings, Sheet, DollarSign, BookOpen, MessageCircle, Gift,
+  Building2, Check,
 } from 'lucide-react';
 import ClinicOps from './_components/ClinicOps';
 import ExecutiveOverview from './_components/ExecutiveOverview';
@@ -79,9 +80,61 @@ const PAGE_TITLE: Record<NavId, string> = {
   settings:      'Settings',
 };
 
+type ClinicOption = { id: string; name: string };
+
+// ── Clinic Switcher ────────────────────────────────────────────
+function ClinicSwitcher({ clinics, activeId, onChange, accent }: {
+  clinics: ClinicOption[];
+  activeId: string | null;
+  onChange: (id: string) => void;
+  accent: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const active = clinics.find(c => c.id === activeId) ?? clinics[0];
+  if (!active) return null;
+  const isMulti = clinics.length > 1;
+
+  return (
+    <div className="px-3 pt-3 pb-2 border-b border-white/10 shrink-0 relative">
+      <button
+        onClick={() => isMulti && setOpen(v => !v)}
+        disabled={!isMulti}
+        className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors ${
+          isMulti ? 'hover:bg-white/10 cursor-pointer' : 'cursor-default'
+        }`}
+      >
+        <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: accent }}>
+          <Building2 size={14} className="text-white" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] uppercase font-bold text-white/40 tracking-widest leading-none">คลินิก</p>
+          <p className="text-sm font-medium text-white truncate mt-0.5">{active.name}</p>
+        </div>
+        {isMulti && <ChevronRight size={14} className={`text-white/50 transition-transform ${open ? 'rotate-90' : ''}`} />}
+      </button>
+
+      {open && isMulti && (
+        <div className="absolute left-3 right-3 top-full mt-1 rounded-xl bg-[#1a2937] border border-white/10 shadow-xl z-50 overflow-hidden">
+          {clinics.map(c => (
+            <button
+              key={c.id}
+              onClick={() => { onChange(c.id); setOpen(false); }}
+              className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left hover:bg-white/10 transition-colors"
+            >
+              <span className="flex-1 truncate text-white/90">{c.name}</span>
+              {c.id === active.id && <Check size={14} className="text-emerald-400 shrink-0" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Sidebar inner content (reused in both desktop & drawer) ────
 function SidebarContent({
   activeNav, setActiveNav, theme, setTheme, t, onNavClick, enabledFeatures, tierLabel, onLogout,
+  clinics, activeClinicId, onClinicChange,
 }: {
   activeNav: NavId;
   setActiveNav: (id: NavId) => void;
@@ -92,6 +145,9 @@ function SidebarContent({
   enabledFeatures: string[];
   tierLabel: string;
   onLogout: () => void;
+  clinics: ClinicOption[];
+  activeClinicId: string | null;
+  onClinicChange: (id: string) => void;
 }) {
   return (
     <>
@@ -107,6 +163,10 @@ function SidebarContent({
           </div>
         </div>
       </div>
+
+      {clinics.length > 0 && (
+        <ClinicSwitcher clinics={clinics} activeId={activeClinicId} onChange={onClinicChange} accent={t.accent} />
+      )}
 
       {/* Nav */}
       <nav className="flex-1 py-4 px-3 space-y-1 overflow-auto">
@@ -206,6 +266,8 @@ export default function DashboardPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [enabledFeatures, setEnabledFeatures] = useState<string[]>([]);
   const [tierLabel, setTierLabel]   = useState('Starter');
+  const [clinics, setClinics]       = useState<ClinicOption[]>([]);
+  const [activeClinicId, setActiveClinicId] = useState<string | null>(null);
 
   const t = THEMES[theme];
 
@@ -251,6 +313,24 @@ export default function DashboardPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  // โหลด list คลินิกที่ user มีสิทธิ์เข้าถึง
+  useEffect(() => {
+    fetch('/api/clinics')
+      .then(r => r.ok ? r.json() : null)
+      .then(json => {
+        if (!json) return;
+        setClinics(json.clinics ?? []);
+        setActiveClinicId(json.activeId ?? null);
+      })
+      .catch(() => {/* silent — ไม่ critical */});
+  }, []);
+
+  function handleClinicChange(id: string) {
+    document.cookie = `active_clinic_id=${encodeURIComponent(id)}; path=/; max-age=31536000; SameSite=Lax`;
+    setActiveClinicId(id);
+    loadData();
+  }
+
   // Close sidebar on resize to desktop
   useEffect(() => {
     const handler = () => { if (window.innerWidth >= 1024) setSidebarOpen(false); };
@@ -263,7 +343,10 @@ export default function DashboardPage() {
     window.location.href = '/login';
   }
 
-  const sidebarProps = { activeNav, setActiveNav, theme, setTheme, t, enabledFeatures, tierLabel, onLogout: handleLogout };
+  const sidebarProps = {
+    activeNav, setActiveNav, theme, setTheme, t, enabledFeatures, tierLabel, onLogout: handleLogout,
+    clinics, activeClinicId, onClinicChange: handleClinicChange,
+  };
 
   return (
     <div className="flex h-full w-full font-body overflow-hidden" style={{ backgroundColor: '#f1f5f9' }}>

@@ -23,45 +23,53 @@ function makeSupabaseServerClient(cookieStore: Awaited<ReturnType<typeof cookies
   );
 }
 
-/** ดึง clinic_id ของ admin ที่ login อยู่ คืน null ถ้าไม่มี session */
-export async function getClinicId(): Promise<string | null> {
+const ACTIVE_CLINIC_COOKIE = 'active_clinic_id';
+
+/** ดึง clinic_id list ของ admin ที่ login อยู่ (รองรับ user ที่ผูกกับหลายคลินิก) */
+export async function getClinicIds(): Promise<string[]> {
   const cookieStore = await cookies();
   const supabase = makeSupabaseServerClient(cookieStore);
 
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  if (!user) return [];
 
   const { data } = await getSupabaseAdmin()
     .from('clinic_users')
     .select('clinic_id')
-    .eq('user_id', user.id)
-    .single();
+    .eq('user_id', user.id);
 
-  return data?.clinic_id ?? null;
+  return (data ?? []).map(r => r.clinic_id).filter(Boolean);
+}
+
+/** ดึง clinic_id ที่ active อยู่ (อ่านจาก cookie ถ้า user ผูกกับหลายคลินิก) คืน null ถ้าไม่มี session หรือไม่มีคลินิก */
+export async function getClinicId(): Promise<string | null> {
+  const cookieStore = await cookies();
+  const ids = await getClinicIds();
+  if (ids.length === 0) return null;
+
+  const active = cookieStore.get(ACTIVE_CLINIC_COOKIE)?.value;
+  if (active && ids.includes(active)) return active;
+  return ids[0];
 }
 
 export type ClinicContext = { clinicId: string; clinicName: string; clinicPhone: string };
 
-/** ดึง clinic_id + name + phone สำหรับ route ที่ต้องส่ง LINE message */
+/** ดึง clinic_id + name + phone ของคลินิกที่ active สำหรับ route ที่ต้องส่ง LINE message */
 export async function getClinicContext(): Promise<ClinicContext | null> {
-  const cookieStore = await cookies();
-  const supabase = makeSupabaseServerClient(cookieStore);
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  const clinicId = await getClinicId();
+  if (!clinicId) return null;
 
   const { data } = await getSupabaseAdmin()
-    .from('clinic_users')
-    .select('clinic_id, clinics(name, phone)')
-    .eq('user_id', user.id)
+    .from('clinics')
+    .select('id, name, phone')
+    .eq('id', clinicId)
     .single();
 
   if (!data) return null;
-  const clinic = data.clinics as unknown as { name: string; phone: string } | null;
   return {
-    clinicId: data.clinic_id,
-    clinicName: clinic?.name ?? '',
-    clinicPhone: clinic?.phone ?? '',
+    clinicId: data.id,
+    clinicName: data.name ?? '',
+    clinicPhone: data.phone ?? '',
   };
 }
 
