@@ -210,6 +210,11 @@ export default function DashboardPage() {
 
   const t = THEMES[theme];
 
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -217,7 +222,11 @@ export default function DashboardPage() {
       if (startDate) params.set('startDate', startDate);
       if (endDate)   params.set('endDate', endDate);
       const res  = await fetch(`/api/dashboard?${params}`);
-      if (res.status === 401) { window.location.href = '/login'; return; }
+      if (res.status === 401) {
+        await supabase.auth.signOut();
+        window.location.href = '/login';
+        return;
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const text = await res.text();
       if (!text) throw new Error('empty');
@@ -246,11 +255,6 @@ export default function DashboardPage() {
     window.addEventListener('resize', handler);
     return () => window.removeEventListener('resize', handler);
   }, []);
-
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
 
   async function handleLogout() {
     await supabase.auth.signOut();

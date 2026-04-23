@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getEnabledFeatures } from '@/lib/tier';
-import { getClinicId } from '@/lib/auth';
+import { getClinicId, getSessionUser } from '@/lib/auth';
 
 function getCategory(t?: string): string {
   if (!t) return 'Other';
@@ -49,8 +49,10 @@ async function fetchAll(table: string, clinic_id: string, fields = '*') {
 
 // GET /api/dashboard?startDate=2024-01-01&endDate=2024-12-31
 export async function GET(req: NextRequest) {
+  const user = await getSessionUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const clinicId = await getClinicId();
-  if (!clinicId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!clinicId) return NextResponse.json({ error: 'No clinic associated with this user' }, { status: 403 });
   const clinic_id = clinicId;
 
   const startDate = req.nextUrl.searchParams.get('startDate');
