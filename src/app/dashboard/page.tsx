@@ -217,6 +217,8 @@ export default function DashboardPage() {
       if (startDate) params.set('startDate', startDate);
       if (endDate)   params.set('endDate', endDate);
       const res  = await fetch(`/api/dashboard?${params}`);
+      if (res.status === 401) { window.location.href = '/login'; return; }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const text = await res.text();
       if (!text) throw new Error('empty');
       const parsed = JSON.parse(text);
