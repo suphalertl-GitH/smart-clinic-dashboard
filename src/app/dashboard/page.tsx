@@ -20,7 +20,6 @@ import CommissionCalculator from './_components/CommissionCalculator';
 import CourseTracker from './_components/CourseTracker';
 import ReEngagement from './_components/ReEngagement';
 import BirthdayReminder from './_components/BirthdayReminder';
-import { MOCK_DASHBOARD } from '@/lib/mock-dashboard';
 
 // ── Theme Definitions ─────────────────────────────────────────
 type ThemeKey = 'teal' | 'emerald' | 'blue' | 'purple' | 'rose' | 'amber' | 'cyan' | 'fuchsia';
@@ -199,7 +198,7 @@ function SidebarContent({
 export default function DashboardPage() {
   const [dashData, setDashData]     = useState<any>(null);
   const [loading, setLoading]       = useState(true);
-  const [usingMock, setUsingMock]   = useState(false);
+  const [loadError, setLoadError]   = useState<{ status: number; message: string } | null>(null);
   const [activeNav, setActiveNav]   = useState<NavId>('overview');
   const [startDate, setStartDate]   = useState('');
   const [endDate, setEndDate]       = useState('');
@@ -217,6 +216,7 @@ export default function DashboardPage() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const params = new URLSearchParams();
       if (startDate) params.set('startDate', startDate);
@@ -227,9 +227,14 @@ export default function DashboardPage() {
         window.location.href = '/login';
         return;
       }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}`;
+        try { const j = await res.json(); if (j?.error) msg = j.error; } catch {}
+        setLoadError({ status: res.status, message: msg });
+        return;
+      }
       const text = await res.text();
-      if (!text) throw new Error('empty');
+      if (!text) throw new Error('empty response');
       const parsed = JSON.parse(text);
       setDashData(parsed);
       if (parsed.enabled_features) setEnabledFeatures(parsed.enabled_features);
@@ -237,15 +242,12 @@ export default function DashboardPage() {
         const labels: Record<string, string> = { starter: 'Starter', professional: 'Professional', enterprise: 'Enterprise', custom: 'Custom' };
         setTierLabel(labels[parsed.tier] ?? parsed.tier);
       }
-      setUsingMock(false);
     } catch (e: any) {
-      console.warn('Dashboard: using mock data —', e.message);
-      setDashData(MOCK_DASHBOARD);
-      setUsingMock(true);
+      setLoadError({ status: 0, message: e?.message ?? 'Network error' });
     } finally {
       setLoading(false);
     }
-  }, [startDate, endDate]);
+  }, [startDate, endDate, supabase]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -320,16 +322,16 @@ export default function DashboardPage() {
               {PAGE_TITLE[activeNav]}
             </h2>
             <div className="flex items-center gap-2 mt-0.5">
-              {usingMock ? (
-                <span className="flex items-center gap-1 text-[11px] text-amber-500 font-semibold">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" /> Mock
+              {loadError ? (
+                <span className="flex items-center gap-1 text-[11px] text-red-500 font-semibold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-400 inline-block" /> Error
                 </span>
               ) : (
                 <span className="flex items-center gap-1 text-[11px] text-emerald-600 font-semibold">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" /> Live
                 </span>
               )}
-              {dashData?.lastUpdated && (
+              {dashData?.lastUpdated && !loadError && (
                 <span className="text-[11px] text-slate-400 hidden sm:inline">· {dashData.lastUpdated}</span>
               )}
             </div>
@@ -394,6 +396,30 @@ export default function DashboardPage() {
           {loading && !dashData ? (
             <div className="flex items-center justify-center h-64 text-slate-400 gap-2">
               <RefreshCw size={20} className="animate-spin" /> กำลังโหลด...
+            </div>
+          ) : loadError ? (
+            <div className="flex items-center justify-center mt-12">
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 max-w-md text-center">
+                <div className="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center mx-auto mb-4">
+                  <span className="text-2xl">!</span>
+                </div>
+                <h3 className="text-base font-semibold text-slate-800 mb-1">โหลดข้อมูลไม่สำเร็จ</h3>
+                <p className="text-sm text-slate-500 mb-1">
+                  {loadError.status === 403
+                    ? 'บัญชีของคุณยังไม่ได้ผูกกับคลินิก กรุณาติดต่อผู้ดูแลระบบ'
+                    : loadError.message}
+                </p>
+                {loadError.status !== 403 && (
+                  <p className="text-xs text-slate-400 mb-4">Status: {loadError.status || 'network'}</p>
+                )}
+                <button
+                  onClick={loadData}
+                  className="mt-3 px-5 py-2 rounded-xl text-white text-sm font-semibold inline-flex items-center gap-2"
+                  style={{ background: t.gradient }}
+                >
+                  <RefreshCw size={14} /> ลองใหม่
+                </button>
+              </div>
             </div>
           ) : dashData ? (
             <>
