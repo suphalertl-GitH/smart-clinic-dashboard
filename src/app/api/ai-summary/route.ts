@@ -136,6 +136,14 @@ export async function POST(_req: NextRequest) {
 เข้าใจ economics ของธุรกิจนี้ — margin สูง, LTV ขึ้นอยู่กับ re-booking + treatment bundling, acquisition แพง ต้อง retention ดี
 สไตล์การให้คำปรึกษา: ตรงประเด็น ให้ insight เชิง action ทันทีใช้ได้ ไม่ใช่แค่อ่านตัวเลขซ้ำ ใช้ศัพท์ธุรกิจคลินิก (course package, combo treatment, inactive patient, referral loop, margin mix) อ้างอิง industry benchmark ถ้าเหมาะสม
 
+**ข้อห้ามเด็ดขาด — เสนอโปรโมชั่นอยู่บนโลกความจริง:**
+- ห้ามกำหนดตัวเลขส่วนลด % เอง (เช่น "ลด 20%", "ฟรี 500 บาท") เพราะไม่รู้ margin/ราคาจริงของคลินิก
+- ห้ามตั้งราคา combo/course package เป็นตัวเลขเอง
+- ห้ามแต่ง treatment ที่ไม่มีในข้อมูล — อ้างจาก Top Treatments / Bundles จริงเท่านั้น
+- แนะนำเฉพาะ **กลุ่มเป้าหมาย (WHO)** + **treatment ที่ควรเสนอ (WHAT)** + **channel (LINE/โทร/SMS)** + **rationale** — ให้เจ้าของคลินิกตัดสินใจราคา/ส่วนลดเอง
+- ถ้าจำเป็นต้องพูดถึงโปรโมชั่น ใช้คำกลาง เช่น "แพ็กเกจคอร์ส", "ส่วนลดตามดุลยพินิจ", "ของแถม" โดยไม่ใส่ตัวเลข
+- Action ต้องทำได้จริง บนช่องทางที่คลินิกมี (LINE OA, นัดหมาย, เคาน์เตอร์) ไม่ใช่ไอเดีย generic marketing
+
 วิเคราะห์ข้อมูล ${clinicName} ประจำเดือนนี้ (ตัวเลขคำนวณแล้ว ห้ามคำนวณเอง):
 
 === สรุปยอดขาย ===
@@ -168,7 +176,8 @@ ${singleTreatTop || 'ไม่มีข้อมูล'}
 2. RETENTION — วิเคราะห์สัดส่วนลูกค้าใหม่/เก่า ถ้าใหม่เยอะ = acquisition cost สูง ควร re-booking ลูกค้าเก่า ถ้าเก่าเยอะ = pipeline ลูกค้าใหม่แห้ง แนะนำ channel acquisition / referral
 3. UPSELL — อ้างอิง bundle pair จริงและ single-treatment cohort ออกเป็น "combo offer" ที่ชัด (ชื่อ treatment A + B) ระบุกลุ่มเป้าหมาย (HN ที่ทำ X แต่ไม่เคยทำ Y)
 
-Focus items: 3-4 item ที่ execute ได้ ภายใน 7 วัน (ไม่ใช่ "เพิ่มยอดขาย" แบบกว้าง — ต้องเจาะเช่น "ส่ง LINE ลูกค้า Botox 21 คนที่ยังไม่เคยทำ Ultraformer offer combo 20% off")
+Focus items: 3-4 item ที่ execute ได้ภายใน 7 วัน — ระบุ WHO + WHAT + CHANNEL ไม่ต้องใส่ราคา/ส่วนลด
+(ตัวอย่างรูปแบบ: "ส่ง LINE ถึงลูกค้าที่ทำ Botox เดี่ยว 21 คน เสนอ treatment Ultraformer เพื่อ complement" — ไม่ใช่ "ส่ง LINE ลด 20%")
 
 ตอบเป็น JSON เท่านั้น รูปแบบ:
 {
