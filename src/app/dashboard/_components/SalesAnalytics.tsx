@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
-import { Trophy, TrendingUp, TrendingDown } from 'lucide-react';
+import { Trophy, TrendingUp, TrendingDown, Check, Loader2 } from 'lucide-react';
 import { fmt, CAT_COLORS, themeChartColors } from './KpiCard';
 
 const SAGE = '#5FAD82';
@@ -20,12 +20,47 @@ export default function SalesAnalytics({ data, theme }: Props) {
   const COLORS  = themeChartColors(theme);
   const { revenueTrendMonthly = [], revenueShareByCategory, topDoctors, topServices, salesRanking } = data;
   const [targets, setTargets] = useState<Record<string, number>>({});
+  const [savedTargets, setSavedTargets] = useState<Record<string, number>>({});
+  const [savingName, setSavingName] = useState<string | null>(null);
+  const [savedName, setSavedName]   = useState<string | null>(null);
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // โหลด target ที่ save ไว้ใน DB
   useEffect(() => {
-    if (salesRanking) {
-      setTargets(salesRanking.reduce((acc: any, s: any) => ({ ...acc, [s.name]: s.target }), {}));
+    fetch('/api/sales-targets')
+      .then(r => r.ok ? r.json() : null)
+      .then(json => { if (json?.targets) setSavedTargets(json.targets); })
+      .catch(() => {/* silent — fallback ไปใช้ค่า default */});
+  }, []);
+
+  // เริ่มค่าเริ่มต้น: ใช้ savedTargets ก่อน ถ้าไม่มีใช้ default จาก API (SALES_TARGET)
+  useEffect(() => {
+    if (!salesRanking) return;
+    setTargets(salesRanking.reduce((acc: any, s: any) => ({
+      ...acc,
+      [s.name]: savedTargets[s.name] ?? s.target,
+    }), {}));
+  }, [salesRanking, savedTargets]);
+
+  async function saveTarget(name: string, value: number) {
+    if (value === savedTargets[name]) return; // ไม่เปลี่ยน → ไม่ต้อง save
+    setSavingName(name);
+    try {
+      const res = await fetch('/api/sales-targets', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sales_name: name, target: value }),
+      });
+      if (res.ok) {
+        setSavedTargets(prev => ({ ...prev, [name]: value }));
+        setSavedName(name);
+        if (savedTimer.current) clearTimeout(savedTimer.current);
+        savedTimer.current = setTimeout(() => setSavedName(null), 1500);
+      }
+    } finally {
+      setSavingName(null);
     }
-  }, [salesRanking]);
+  }
 
   const totalSales = salesRanking.reduce((sum: number, s: any) => sum + s.revenue, 0);
   const topPerformer = salesRanking[0] ?? null;
@@ -204,10 +239,21 @@ export default function SalesAnalytics({ data, theme }: Props) {
                           {fmt(s.revenue)}
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <input type="text" value={target.toLocaleString()}
-                            onChange={e => setTargets(prev => ({ ...prev, [s.name]: parseFloat(e.target.value.replace(/,/g, '')) || 0 }))}
-                            className="w-full bg-transparent text-right font-medium text-slate-400 border-b border-transparent hover:border-slate-200 focus:border-teal-400 focus:outline-none p-1 text-sm"
-                          />
+                          <div className="flex items-center justify-end gap-1.5">
+                            <input type="text" value={target.toLocaleString()}
+                              onChange={e => setTargets(prev => ({ ...prev, [s.name]: parseFloat(e.target.value.replace(/,/g, '')) || 0 }))}
+                              onBlur={() => saveTarget(s.name, target)}
+                              onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                              className="w-full bg-transparent text-right font-medium text-slate-500 border-b border-transparent hover:border-slate-200 focus:border-teal-400 focus:outline-none p-1 text-sm"
+                            />
+                            <span className="w-4 h-4 flex items-center justify-center shrink-0">
+                              {savingName === s.name ? (
+                                <Loader2 size={12} className="text-slate-400 animate-spin" />
+                              ) : savedName === s.name ? (
+                                <Check size={12} className="text-emerald-500" />
+                              ) : null}
+                            </span>
+                          </div>
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
