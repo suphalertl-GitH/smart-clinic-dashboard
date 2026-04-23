@@ -150,8 +150,11 @@ export async function GET(req: NextRequest) {
     if (!serviceMap[tn]) serviceMap[tn] = { revenue: 0, visits: 0, category: cat };
     serviceMap[tn].revenue += revenue; serviceMap[tn].visits++;
 
-    const sn = v.sales_name || 'ไม่ระบุ';
-    salesMap[sn] = (salesMap[sn] || 0) + revenue;
+    // Sales ranking: ถ้ามี date filter ใช้ range นั้น (visits filter ไปแล้ว) ถ้าไม่มี ใช้เฉพาะเดือนปัจจุบัน — ตรง scope กับ Monthly Revenue KPI
+    if ((startDate || endDate) || mk === currentMonthKey) {
+      const sn = v.sales_name || 'ไม่ระบุ';
+      salesMap[sn] = (salesMap[sn] || 0) + revenue;
+    }
     const hn = v.hn ?? 'Unknown';
     if (!patientMap[hn]) patientMap[hn] = { revenue: 0, visits: 0 };
     patientMap[hn].revenue += revenue; patientMap[hn].visits++;
