@@ -4,8 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import {
   Activity, RefreshCw, LayoutDashboard, BarChart2, Users,
-  Megaphone, Stethoscope, Bell, Search, LogOut, HeartPulse,
-  Brain, Tag, Menu, X, ChevronRight, Settings, Sheet,
+  Megaphone, Bell, Search, LogOut, HeartPulse,
+  Brain, Tag, Menu, X, ChevronRight, Settings, Sheet, DollarSign, BookOpen, MessageCircle, Gift,
 } from 'lucide-react';
 import ClinicOps from './_components/ClinicOps';
 import ExecutiveOverview from './_components/ExecutiveOverview';
@@ -16,6 +16,10 @@ import PredictiveDashboard from './_components/PredictiveDashboard';
 import PromotionsManager from './_components/PromotionsManager';
 import SettingsManager from './_components/SettingsManager';
 import SheetsSyncManager from './_components/SheetsSyncManager';
+import CommissionCalculator from './_components/CommissionCalculator';
+import CourseTracker from './_components/CourseTracker';
+import ReEngagement from './_components/ReEngagement';
+import BirthdayReminder from './_components/BirthdayReminder';
 import { MOCK_DASHBOARD } from '@/lib/mock-dashboard';
 
 // ── Theme Definitions ─────────────────────────────────────────
@@ -32,7 +36,7 @@ const THEMES: Record<ThemeKey, { bg: string; bgDark: string; accent: string; gra
 };
 
 // ── Nav items ─────────────────────────────────────────────────
-type NavId = 'overview' | 'sales' | 'customers' | 'crm' | 'promotions' | 'predictive' | 'sheets' | 'settings' | 'clinicops';
+type NavId = 'overview' | 'sales' | 'customers' | 'crm' | 'promotions' | 'predictive' | 'sheets' | 'settings' | 'clinicops' | 'commission' | 'courses' | 'reengagement' | 'birthday';
 
 const NAV: { id: NavId; label: string; icon: React.FC<any>; badge?: string; featureKey?: string; divider?: boolean }[] = [
   { id: 'overview',   label: 'Executive Summary',  icon: LayoutDashboard },
@@ -41,8 +45,12 @@ const NAV: { id: NavId; label: string; icon: React.FC<any>; badge?: string; feat
   { id: 'crm',        label: 'CRM & Campaigns',   icon: Megaphone,  featureKey: 'crm' },
   { id: 'promotions', label: 'Promotions',         icon: Tag,        featureKey: 'promotions' },
   { id: 'predictive', label: 'Predictive AI',      icon: Brain,      featureKey: 'predictive', badge: 'AI' },
-  { id: 'clinicops',  label: 'Clinic Ops',         icon: Activity,   featureKey: 'clinic_ops' },
-  { id: 'sheets',     label: 'Connect Google Sheets', icon: Sheet,   featureKey: 'google_sheets' },
+  { id: 'clinicops',  label: 'Clinic Ops',          icon: Activity,    featureKey: 'clinic_ops' },
+  { id: 'commission', label: 'Commission',           icon: DollarSign,  featureKey: 'commission_calculator' },
+  { id: 'courses',      label: 'Course Tracker',       icon: BookOpen,       featureKey: 'course_tracker' },
+  { id: 'reengagement', label: 'Re-engagement',       icon: MessageCircle,  featureKey: 're_engagement' },
+  { id: 'birthday',     label: 'Birthday & Anniv.',  icon: Gift,           featureKey: 'birthday_reminder' },
+  { id: 'sheets',     label: 'Connect Google Sheets', icon: Sheet,    featureKey: 'google_sheets' },
   { id: 'settings',   label: 'Settings',           icon: Settings,   divider: true },
 ];
 const DISABLED_NAV: { label: string; icon: React.FC<any> }[] = [];
@@ -65,7 +73,11 @@ const PAGE_TITLE: Record<NavId, string> = {
   predictive: 'Predictive AI',
   sheets:     'Connect Google Sheets',
   clinicops:  'Clinic Ops',
-  settings:   'Settings',
+  commission: 'Commission Calculator',
+  courses:       'Course Tracker',
+  reengagement:  'Re-engagement Campaign',
+  birthday:      'Birthday & Anniversary',
+  settings:      'Settings',
 };
 
 // ── Sidebar inner content (reused in both desktop & drawer) ────
@@ -387,6 +399,10 @@ export default function DashboardPage() {
               {activeNav === 'predictive' && <PredictiveDashboard />}
               {activeNav === 'sheets'     && <SheetsSyncManager />}
               {activeNav === 'clinicops'  && <ClinicOps globalStart={startDate} globalEnd={endDate} />}
+              {activeNav === 'commission' && <CommissionCalculator />}
+              {activeNav === 'courses'       && <CourseTracker />}
+              {activeNav === 'reengagement'  && <ReEngagement />}
+              {activeNav === 'birthday'      && <BirthdayReminder />}
               {activeNav === 'settings'   && <SettingsManager />}
             </>
           ) : (

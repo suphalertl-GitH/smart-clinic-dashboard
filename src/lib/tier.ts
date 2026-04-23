@@ -13,19 +13,26 @@ export type FeatureKey =
   | 'google_sheets'
   | 'predictive'
   | 'followup_bot'
-  | 'clinic_ops';
+  | 'clinic_ops'
+  | 'commission_calculator'
+  | 'course_tracker'
+  | 're_engagement'
+  | 'birthday_reminder';
 
 /** Features included in each standard tier */
 export const TIER_FEATURES: Record<Exclude<Tier, 'custom'>, FeatureKey[]> = {
-  starter: ['sales_analytics'],
+  starter: [
+    'sales_analytics', 'customer_insights', 'followup_bot',
+  ],
   professional: [
     'sales_analytics', 'customer_insights', 'ai_summary',
     'promotions', 'crm', 'promptpay', 'google_sheets', 'clinic_ops',
+    'predictive', 'followup_bot', 'commission_calculator', 'course_tracker', 're_engagement', 'birthday_reminder',
   ],
   enterprise: [
     'sales_analytics', 'customer_insights', 'ai_summary',
-    'promotions', 'crm', 'promptpay', 'google_sheets',
-    'predictive', 'followup_bot', 'clinic_ops',
+    'promotions', 'crm', 'promptpay', 'google_sheets', 'clinic_ops',
+    'predictive', 'followup_bot', 'commission_calculator', 'course_tracker', 're_engagement', 'birthday_reminder',
   ],
 };
 
@@ -40,7 +47,11 @@ export const FEATURE_META: { key: FeatureKey; label: string; desc: string }[] = 
   { key: 'google_sheets',     label: 'Google Sheets',        desc: 'Sync ข้อมูลกับ Google Sheets' },
   { key: 'predictive',        label: 'Predictive AI',        desc: 'AI พยากรณ์ revenue/churn' },
   { key: 'followup_bot',      label: 'Smart CRM Bot',        desc: 'Bot follow-up อัตโนมัติทาง LINE' },
-  { key: 'clinic_ops',        label: 'Clinic Ops',           desc: 'Heatmap นัด + workload แพทย์' },
+  { key: 'clinic_ops',           label: 'Clinic Ops',           desc: 'Heatmap นัด + workload แพทย์' },
+  { key: 'commission_calculator', label: 'Commission Calculator', desc: 'คำนวณค่าคอมมิชชั่นรายเดือนต่อพนักงานขาย' },
+  { key: 'course_tracker',        label: 'Course Tracker',        desc: 'ติดตามคอร์สการรักษาและจำนวนครั้งที่เหลือ' },
+  { key: 're_engagement',         label: 'Re-engagement Campaign', desc: 'ส่ง LINE หาลูกค้าที่ไม่มาตามระยะเวลาที่กำหนด' },
+  { key: 'birthday_reminder',     label: 'Birthday & Anniversary', desc: 'ส่ง LINE อวยพรวันเกิดและครบรอบลูกค้าอัตโนมัติ' },
 ];
 
 /** ดึง enabled features ของ clinic */
