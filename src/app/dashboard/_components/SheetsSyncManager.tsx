@@ -1,7 +1,10 @@
 'use client';
 
-import { useState } from 'react';
-import { Sheet, RefreshCw, CheckCircle2, XCircle, Users, ClipboardList, CalendarDays, Zap, Calendar, Trash2 } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import {
+  Sheet, RefreshCw, CheckCircle2, XCircle, Users, ClipboardList,
+  CalendarDays, Zap, Calendar, Trash2, Clock, Plus, ToggleLeft, ToggleRight,
+} from 'lucide-react';
 
 type SyncMode = 'today' | 'range';
 
@@ -11,15 +14,73 @@ type SyncStats = {
   appointments: { total: number; added: number; updated: number };
 };
 
+const PRIMARY = '#0f4c5c';
+
 export default function SheetsSyncManager() {
-  const [loading, setLoading]     = useState<SyncMode | null>(null);
-  const [stats, setStats]         = useState<SyncStats | null>(null);
-  const [lastMode, setLastMode]   = useState<SyncMode | null>(null);
-  const [error, setError]         = useState<string | null>(null);
-  const [syncedAt, setSyncedAt]   = useState<string | null>(null);
-  const [showRange, setShowRange] = useState(false);
-  const [fromDate, setFromDate]   = useState('');
-  const [toDate, setToDate]       = useState('');
+  const [loading, setLoading]       = useState<SyncMode | null>(null);
+  const [stats, setStats]           = useState<SyncStats | null>(null);
+  const [lastMode, setLastMode]     = useState<SyncMode | null>(null);
+  const [error, setError]           = useState<string | null>(null);
+  const [syncedAt, setSyncedAt]     = useState<string | null>(null);
+  const [showRange, setShowRange]   = useState(false);
+  const [fromDate, setFromDate]     = useState('');
+  const [toDate, setToDate]         = useState('');
+
+  // Auto-sync schedule state
+  const [autoEnabled, setAutoEnabled] = useState(false);
+  const [syncTimes, setSyncTimes]     = useState<string[]>([]);
+  const [newTime, setNewTime]         = useState('');
+  const [savingSchedule, setSavingSchedule] = useState(false);
+  const [scheduleSaved, setScheduleSaved]   = useState(false);
+
+  // โหลด schedule ที่บันทึกไว้
+  const loadSchedule = useCallback(async () => {
+    const res = await fetch('/api/settings').catch(() => null);
+    if (!res?.ok) return;
+    const data = await res.json();
+    setAutoEnabled(data.sync_auto_enabled ?? false);
+    setSyncTimes(data.sync_times ?? []);
+  }, []);
+
+  useEffect(() => { loadSchedule(); }, [loadSchedule]);
+
+  async function saveSchedule(enabled: boolean, times: string[]) {
+    setSavingSchedule(true);
+    setScheduleSaved(false);
+    try {
+      await fetch('/api/settings', {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ sync_auto_enabled: enabled, sync_times: times }),
+      });
+      setScheduleSaved(true);
+      setTimeout(() => setScheduleSaved(false), 2500);
+    } finally {
+      setSavingSchedule(false);
+    }
+  }
+
+  function toggleAuto() {
+    const next = !autoEnabled;
+    setAutoEnabled(next);
+    saveSchedule(next, syncTimes);
+  }
+
+  function addTime() {
+    const t = newTime.slice(0, 5); // HH:MM → round to HH:00
+    const rounded = t.slice(0, 3) + '00';
+    if (!rounded || syncTimes.includes(rounded)) return;
+    const next = [...syncTimes, rounded].sort();
+    setSyncTimes(next);
+    setNewTime('');
+    saveSchedule(autoEnabled, next);
+  }
+
+  function removeTime(t: string) {
+    const next = syncTimes.filter(x => x !== t);
+    setSyncTimes(next);
+    saveSchedule(autoEnabled, next);
+  }
 
   async function handleSync(mode: SyncMode) {
     if (mode === 'range' && (!fromDate || !toDate)) return;
@@ -51,7 +112,7 @@ export default function SheetsSyncManager() {
   return (
     <div className="max-w-lg space-y-4">
 
-      {/* Main card */}
+      {/* Manual sync card */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
         <div className="flex items-center gap-3 mb-5">
           <div className="w-11 h-11 rounded-xl bg-emerald-100 flex items-center justify-center">
@@ -64,29 +125,21 @@ export default function SheetsSyncManager() {
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          {/* Sync วันนี้ */}
           <button
             onClick={() => handleSync('today')}
             disabled={isLoading}
             className="flex flex-col items-center gap-1.5 py-3.5 px-3 rounded-xl border-2 border-emerald-500 bg-emerald-50 text-emerald-700 font-semibold text-sm transition-all hover:bg-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading === 'today'
-              ? <RefreshCw size={18} className="animate-spin" />
-              : <Zap size={18} />}
+            {loading === 'today' ? <RefreshCw size={18} className="animate-spin" /> : <Zap size={18} />}
             <span>{loading === 'today' ? 'กำลัง sync...' : 'Sync วันนี้'}</span>
-            <span className="text-[11px] font-normal text-emerald-600 text-center leading-tight">
-              ตรวจ-ลบ-เพิ่ม ให้ตรงชีต
-            </span>
+            <span className="text-[11px] font-normal text-emerald-600 text-center leading-tight">ตรวจ-ลบ-เพิ่ม ให้ตรงชีต</span>
           </button>
 
-          {/* Sync ช่วงเวลา */}
           <button
             onClick={() => setShowRange(v => !v)}
             disabled={isLoading}
             className={`flex flex-col items-center gap-1.5 py-3.5 px-3 rounded-xl border-2 font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-              showRange
-                ? 'border-blue-500 bg-blue-50 text-blue-700'
-                : 'border-slate-300 bg-slate-50 text-slate-700 hover:bg-slate-100'
+              showRange ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-300 bg-slate-50 text-slate-700 hover:bg-slate-100'
             }`}
           >
             <Calendar size={18} />
@@ -97,26 +150,19 @@ export default function SheetsSyncManager() {
           </button>
         </div>
 
-        {/* Date range panel */}
         {showRange && (
           <div className="mt-4 p-4 rounded-xl bg-blue-50 border border-blue-100 space-y-3">
             <p className="text-xs font-semibold text-blue-700">เลือกช่วงวันที่ที่ต้องการ reconcile</p>
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="text-[11px] text-slate-500 mb-1 block">จากวันที่</label>
-                <input
-                  type="date" value={fromDate}
-                  onChange={e => setFromDate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-blue-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                />
+                <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-blue-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
               </div>
               <div>
                 <label className="text-[11px] text-slate-500 mb-1 block">ถึงวันที่</label>
-                <input
-                  type="date" value={toDate}
-                  onChange={e => setToDate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-blue-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                />
+                <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-blue-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
               </div>
             </div>
             <button
@@ -145,31 +191,101 @@ export default function SheetsSyncManager() {
         )}
       </div>
 
+      {/* Auto-sync schedule card */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6">
+        {/* Header + toggle */}
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#E6F4F4' }}>
+            <Clock size={20} style={{ color: PRIMARY }} />
+          </div>
+          <div className="flex-1">
+            <h3 className="font-semibold text-slate-800">Sync อัตโนมัติ</h3>
+            <p className="text-xs text-slate-400">ดึงข้อมูลจากชีตตามเวลาที่กำหนด (ทุกวัน)</p>
+          </div>
+          <button
+            onClick={toggleAuto}
+            disabled={savingSchedule}
+            className="transition-opacity disabled:opacity-50"
+            title={autoEnabled ? 'ปิด Auto Sync' : 'เปิด Auto Sync'}
+          >
+            {autoEnabled
+              ? <ToggleRight size={36} style={{ color: PRIMARY }} />
+              : <ToggleLeft size={36} className="text-slate-300" />}
+          </button>
+        </div>
+
+        {/* Status badge */}
+        <div className={`mb-4 px-3 py-2 rounded-xl text-xs font-medium flex items-center gap-2 ${
+          autoEnabled ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-400'
+        }`}>
+          <span className={`w-2 h-2 rounded-full ${autoEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
+          {autoEnabled
+            ? syncTimes.length > 0
+              ? `เปิดอยู่ — sync ทุกวันเวลา ${syncTimes.join(', ')}`
+              : 'เปิดอยู่ — ยังไม่มีเวลาที่กำหนด'
+            : 'ปิดอยู่ — ไม่มี sync อัตโนมัติ'}
+          {scheduleSaved && <span className="ml-auto text-emerald-600 flex items-center gap-1"><CheckCircle2 size={12} /> บันทึกแล้ว</span>}
+        </div>
+
+        {/* Time list */}
+        {syncTimes.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {syncTimes.map(t => (
+              <div key={t} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-sm font-semibold"
+                style={{ borderColor: PRIMARY, color: PRIMARY, backgroundColor: '#E6F4F4' }}>
+                <Clock size={12} />
+                {t}
+                <button onClick={() => removeTime(t)} className="ml-0.5 text-slate-400 hover:text-red-500 transition-colors">
+                  <XCircle size={13} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Add time */}
+        <div className="flex gap-2">
+          <input
+            type="time"
+            value={newTime}
+            onChange={e => setNewTime(e.target.value)}
+            className="flex-1 px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:border-transparent"
+            style={{ '--tw-ring-color': PRIMARY } as React.CSSProperties}
+          />
+          <button
+            onClick={addTime}
+            disabled={!newTime || savingSchedule}
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-40 transition-opacity"
+            style={{ backgroundColor: PRIMARY }}
+          >
+            {savingSchedule ? <RefreshCw size={14} className="animate-spin" /> : <Plus size={14} />}
+            เพิ่มเวลา
+          </button>
+        </div>
+        <p className="text-[11px] text-slate-400 mt-2">* ระบบจะปัดเป็นทุกต้นชั่วโมง เช่น 09:30 → 09:00</p>
+      </div>
+
       {/* Result */}
       {stats && (
         <div className="bg-white rounded-2xl border border-emerald-200 p-5 space-y-3">
           <div className="flex items-center gap-2 text-emerald-700 font-semibold text-sm mb-1">
             <CheckCircle2 size={16} /> Sync สำเร็จ
           </div>
-
           <StatRow icon={<Users size={15} className="text-blue-500" />}
             label="Patients"
             detail={`${stats.patients.total} รายการ · updated ${stats.patients.updated}`} />
-
           <StatRow icon={<ClipboardList size={15} className="text-purple-500" />}
             label="Visits"
             detail={`${stats.visits.total} รายการ · added ${stats.visits.added} · updated ${stats.visits.updated}`}
             extra={stats.visits.deleted > 0
               ? <span className="flex items-center gap-1 text-red-500"><Trash2 size={11} /> ลบ {stats.visits.deleted} แถว</span>
               : undefined} />
-
           <StatRow icon={<CalendarDays size={15} className="text-amber-500" />}
             label="Appointments"
             detail={`${stats.appointments.total} รายการ · added ${stats.appointments.added} · updated ${stats.appointments.updated}`} />
         </div>
       )}
 
-      {/* Error */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start gap-2 text-sm text-red-700">
           <XCircle size={16} className="mt-0.5 shrink-0" />

@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/birthday",
       "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/cron/sheets-sync",
+      "schedule": "0 * * * *"
     }
   ]
 }

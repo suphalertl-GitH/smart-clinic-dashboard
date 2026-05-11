@@ -307,7 +307,8 @@ export async function POST(req: NextRequest) {
     clinicId = await getClinicId();
     if (!clinicId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   } else {
-    clinicId = process.env.CLINIC_ID ?? 'a0000000-0000-0000-0000-000000000001';
+    // cron ส่ง x-clinic-id header มาให้ตรงๆ
+    clinicId = req.headers.get('x-clinic-id') ?? process.env.CLINIC_ID ?? 'a0000000-0000-0000-0000-000000000001';
   }
 
   try {

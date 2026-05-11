@@ -24,7 +24,7 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json();
 
     // Allowed fields to update
-    const allowed = ['doctor_names', 'sales_names', 'time_slots', 'treatment_cycles'];
+    const allowed = ['doctor_names', 'sales_names', 'time_slots', 'treatment_cycles', 'sync_auto_enabled', 'sync_times'];
     const update: Record<string, any> = {};
     for (const key of allowed) {
       if (key in body) update[key] = body[key];
