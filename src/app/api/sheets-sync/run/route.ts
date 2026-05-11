@@ -112,10 +112,16 @@ async function syncPatients(clinicId: string, patRows: Record<string, string>[],
   return { total: patients.length, updated };
 }
 
-async function syncVisits(clinicId: string, visRows: Record<string, string>[], filterToday?: string) {
+async function syncVisits(clinicId: string, visRows: Record<string, string>[], filterToday?: string, fromISO?: string, toISO?: string) {
   const visits = visRows.filter(r => {
     if (price(r['ยอดรวม'] || r['ราคา']) <= 0) return false;
     if (filterToday) return matchDate(r['Timestamp'], filterToday);
+    if (fromISO || toISO) {
+      const d = parseThaiDate(r['Timestamp']);
+      if (!d) return false;
+      if (fromISO && d < fromISO) return false;
+      if (toISO && d > toISO) return false;
+    }
     return true;
   });
   let added = 0, updated = 0;
@@ -197,11 +203,17 @@ async function syncVisits(clinicId: string, visRows: Record<string, string>[], f
   return { total: visits.length, added, updated };
 }
 
-async function syncAppointments(clinicId: string, visRows: Record<string, string>[], filterToday?: string) {
+async function syncAppointments(clinicId: string, visRows: Record<string, string>[], filterToday?: string, fromISO?: string, toISO?: string) {
   const appts = visRows.filter(r => {
     const d = r['วันที่นัดหมาย (Appointment_Date)'] || r['วันที่นัดหมาย'];
     if (!d || !String(d).trim()) return false;
     if (filterToday) return matchDate(r['Timestamp'], filterToday);
+    if (fromISO || toISO) {
+      const ts = parseThaiDate(r['Timestamp']);
+      if (!ts) return false;
+      if (fromISO && ts < fromISO) return false;
+      if (toISO && ts > toISO) return false;
+    }
     return true;
   });
   let added = 0, updated = 0;
@@ -246,9 +258,46 @@ async function syncAppointments(clinicId: string, visRows: Record<string, string
   return { total: appts.length, added, updated };
 }
 
+// ─── Reconcile visits: ลบแถวใน Supabase ที่ไม่มีในชีตสำหรับช่วงวันที่นั้น ─
+async function reconcileVisits(clinicId: string, visRows: Record<string, string>[], fromDate: string, toDate: string): Promise<number> {
+  // สร้าง signature set จากชีต (เฉพาะ rows ที่อยู่ในช่วงวันที่)
+  const sheetSigs = new Set<string>();
+  for (const r of visRows) {
+    if (price(r['ยอดรวม'] || r['ราคา']) <= 0) continue;
+    const visitDate = parseThaiDate(r['Timestamp']);
+    if (!visitDate || visitDate < fromDate || visitDate > toDate) continue;
+    const hn = String(r['HN'] || '').trim();
+    const treatmentName = String(r['Treatment_Name'] || '').trim();
+    const p = price(r['ยอดรวม'] || r['ราคา']);
+    sheetSigs.add(`${hn}|${treatmentName}|${p}|${visitDate}`);
+  }
+
+  // ดึง visits ใน Supabase สำหรับช่วงเวลาเดียวกัน
+  const { data: dbVisits } = await supabaseAdmin
+    .from('visits')
+    .select('id, hn, treatment_name, price, visit_date, created_at')
+    .eq('clinic_id', clinicId)
+    .gte('created_at', fromDate + 'T00:00:00+07:00')
+    .lte('created_at', toDate + 'T23:59:59+07:00');
+
+  if (!dbVisits?.length) return 0;
+
+  // หา rows ที่ไม่มีใน sheet → ลบ
+  const toDelete = dbVisits
+    .filter(v => {
+      const vd = v.visit_date || v.created_at?.slice(0, 10);
+      return !sheetSigs.has(`${v.hn}|${v.treatment_name}|${v.price}|${vd}`);
+    })
+    .map(v => v.id);
+
+  if (toDelete.length > 0) {
+    await supabaseAdmin.from('visits').delete().in('id', toDelete);
+  }
+  return toDelete.length;
+}
+
 // ─── Route ────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
-  // ตรวจสิทธิ์ — ต้องมี session login หรือส่ง CRON_SECRET header
   const authHeader = req.headers.get('authorization');
   const CRON_SECRET = process.env.CRON_SECRET ?? 'clinic2026secret';
   const hasCronAuth = authHeader === `Bearer ${CRON_SECRET}`;
@@ -256,28 +305,50 @@ export async function POST(req: NextRequest) {
   if (!hasCronAuth) {
     const { getClinicId } = await import('@/lib/auth');
     clinicId = await getClinicId();
-    if (!clinicId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    if (!clinicId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   } else {
     clinicId = process.env.CLINIC_ID ?? 'a0000000-0000-0000-0000-000000000001';
   }
+
   try {
     const body = await req.json().catch(() => ({}));
-    const mode = body.mode ?? 'full';   // 'today' | 'full'
+    const mode: 'today' | 'range' = body.mode ?? 'today';
+
+    // คำนวณช่วงวันที่
+    const todayISO = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }))
+      .toISOString().slice(0, 10);
+    const fromDate: string = mode === 'today' ? todayISO : (body.fromDate ?? todayISO);
+    const toDate: string   = mode === 'today' ? todayISO : (body.toDate   ?? todayISO);
+
     const filterToday = mode === 'today' ? todayThai() : undefined;
+    const filterFromISO = mode === 'range' ? fromDate : undefined;
+    const filterToISO   = mode === 'range' ? toDate   : undefined;
 
     const [patCSV, visCSV] = await Promise.all([fetchCSV(GID_PAT), fetchCSV(GID_VISIT)]);
     const patRows = parseCSV(patCSV);
     const visRows = parseCSV(visCSV);
 
+    // filter patRows สำหรับ range mode
+    const filteredPatRows = mode === 'range'
+      ? patRows.filter(r => {
+          const d = parseThaiDate(r['Timestamp']);
+          return d && d >= fromDate && d <= toDate;
+        })
+      : patRows;
+
     const [patients, visits, appointments] = await Promise.all([
-      syncPatients(clinicId, patRows, filterToday),
-      syncVisits(clinicId, visRows, filterToday),
-      syncAppointments(clinicId, visRows, filterToday),
+      syncPatients(clinicId, filteredPatRows, filterToday),
+      syncVisits(clinicId, visRows, filterToday, filterFromISO, filterToISO),
+      syncAppointments(clinicId, visRows, filterToday, filterFromISO, filterToISO),
     ]);
 
-    return NextResponse.json({ success: true, mode, filterToday, stats: { patients, visits, appointments } });
+    // Reconcile: ลบแถวใน Supabase ที่หายจากชีตในช่วงวันที่นั้น
+    const deleted = await reconcileVisits(clinicId, visRows, fromDate, toDate);
+
+    return NextResponse.json({
+      success: true, mode, fromDate, toDate,
+      stats: { patients, visits: { ...visits, deleted }, appointments },
+    });
   } catch (err: any) {
     console.error('sheets-sync/run error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
