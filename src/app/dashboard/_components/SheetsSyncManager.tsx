@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Sheet, RefreshCw, CheckCircle2, XCircle, Users, ClipboardList,
-  CalendarDays, Zap, Calendar, Trash2, Clock, Plus, ToggleLeft, ToggleRight,
+  CalendarDays, Zap, Calendar, Trash2, Clock, ToggleLeft, ToggleRight, Save,
 } from 'lucide-react';
 
 type SyncMode = 'today' | 'range';
@@ -17,41 +17,40 @@ type SyncStats = {
 const PRIMARY = '#0f4c5c';
 
 export default function SheetsSyncManager() {
-  const [loading, setLoading]       = useState<SyncMode | null>(null);
-  const [stats, setStats]           = useState<SyncStats | null>(null);
-  const [lastMode, setLastMode]     = useState<SyncMode | null>(null);
-  const [error, setError]           = useState<string | null>(null);
-  const [syncedAt, setSyncedAt]     = useState<string | null>(null);
-  const [showRange, setShowRange]   = useState(false);
-  const [fromDate, setFromDate]     = useState('');
-  const [toDate, setToDate]         = useState('');
+  const [loading, setLoading]     = useState<SyncMode | null>(null);
+  const [stats, setStats]         = useState<SyncStats | null>(null);
+  const [lastMode, setLastMode]   = useState<SyncMode | null>(null);
+  const [error, setError]         = useState<string | null>(null);
+  const [syncedAt, setSyncedAt]   = useState<string | null>(null);
+  const [showRange, setShowRange] = useState(false);
+  const [fromDate, setFromDate]   = useState('');
+  const [toDate, setToDate]       = useState('');
 
-  // Auto-sync schedule state
+  // Auto-sync
   const [autoEnabled, setAutoEnabled] = useState(false);
-  const [syncTimes, setSyncTimes]     = useState<string[]>([]);
-  const [newTime, setNewTime]         = useState('');
+  const [syncTime, setSyncTime]       = useState('09:00');
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [scheduleSaved, setScheduleSaved]   = useState(false);
 
-  // โหลด schedule ที่บันทึกไว้
   const loadSchedule = useCallback(async () => {
     const res = await fetch('/api/settings').catch(() => null);
     if (!res?.ok) return;
     const data = await res.json();
     setAutoEnabled(data.sync_auto_enabled ?? false);
-    setSyncTimes(data.sync_times ?? []);
+    const times: string[] = data.sync_times ?? [];
+    if (times.length > 0) setSyncTime(times[0]);
   }, []);
 
   useEffect(() => { loadSchedule(); }, [loadSchedule]);
 
-  async function saveSchedule(enabled: boolean, times: string[]) {
+  async function saveSchedule(enabled: boolean, time: string) {
     setSavingSchedule(true);
     setScheduleSaved(false);
     try {
       await fetch('/api/settings', {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ sync_auto_enabled: enabled, sync_times: times }),
+        body:    JSON.stringify({ sync_auto_enabled: enabled, sync_times: [time] }),
       });
       setScheduleSaved(true);
       setTimeout(() => setScheduleSaved(false), 2500);
@@ -60,26 +59,14 @@ export default function SheetsSyncManager() {
     }
   }
 
+  function handleSaveSchedule() {
+    saveSchedule(autoEnabled, syncTime);
+  }
+
   function toggleAuto() {
     const next = !autoEnabled;
     setAutoEnabled(next);
-    saveSchedule(next, syncTimes);
-  }
-
-  function addTime() {
-    const t = newTime.slice(0, 5); // HH:MM → round to HH:00
-    const rounded = t.slice(0, 3) + '00';
-    if (!rounded || syncTimes.includes(rounded)) return;
-    const next = [...syncTimes, rounded].sort();
-    setSyncTimes(next);
-    setNewTime('');
-    saveSchedule(autoEnabled, next);
-  }
-
-  function removeTime(t: string) {
-    const next = syncTimes.filter(x => x !== t);
-    setSyncTimes(next);
-    saveSchedule(autoEnabled, next);
+    saveSchedule(next, syncTime);
   }
 
   async function handleSync(mode: SyncMode) {
@@ -112,7 +99,7 @@ export default function SheetsSyncManager() {
   return (
     <div className="max-w-lg space-y-4">
 
-      {/* Manual sync card */}
+      {/* Manual sync */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
         <div className="flex items-center gap-3 mb-5">
           <div className="w-11 h-11 rounded-xl bg-emerald-100 flex items-center justify-center">
@@ -168,7 +155,7 @@ export default function SheetsSyncManager() {
             <button
               onClick={() => handleSync('range')}
               disabled={isLoading || !fromDate || !toDate}
-              className="w-full py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
             >
               {loading === 'range'
                 ? <><RefreshCw size={15} className="animate-spin" /> กำลัง sync...</>
@@ -191,78 +178,58 @@ export default function SheetsSyncManager() {
         )}
       </div>
 
-      {/* Auto-sync schedule card */}
+      {/* Auto-sync */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        {/* Header + toggle */}
         <div className="flex items-center gap-3 mb-4">
           <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#E6F4F4' }}>
             <Clock size={20} style={{ color: PRIMARY }} />
           </div>
           <div className="flex-1">
             <h3 className="font-semibold text-slate-800">Sync อัตโนมัติ</h3>
-            <p className="text-xs text-slate-400">ดึงข้อมูลจากชีตตามเวลาที่กำหนด (ทุกวัน)</p>
+            <p className="text-xs text-slate-400">ดึงข้อมูลจากชีตวันละ 1 ครั้งตามเวลาที่กำหนด</p>
           </div>
-          <button
-            onClick={toggleAuto}
-            disabled={savingSchedule}
-            className="transition-opacity disabled:opacity-50"
-            title={autoEnabled ? 'ปิด Auto Sync' : 'เปิด Auto Sync'}
-          >
+          <button onClick={toggleAuto} disabled={savingSchedule} className="transition-opacity disabled:opacity-50">
             {autoEnabled
               ? <ToggleRight size={36} style={{ color: PRIMARY }} />
               : <ToggleLeft size={36} className="text-slate-300" />}
           </button>
         </div>
 
-        {/* Status badge */}
+        {/* Status */}
         <div className={`mb-4 px-3 py-2 rounded-xl text-xs font-medium flex items-center gap-2 ${
           autoEnabled ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-400'
         }`}>
           <span className={`w-2 h-2 rounded-full ${autoEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
-          {autoEnabled
-            ? syncTimes.length > 0
-              ? `เปิดอยู่ — sync ทุกวันเวลา ${syncTimes.join(', ')}`
-              : 'เปิดอยู่ — ยังไม่มีเวลาที่กำหนด'
-            : 'ปิดอยู่ — ไม่มี sync อัตโนมัติ'}
-          {scheduleSaved && <span className="ml-auto text-emerald-600 flex items-center gap-1"><CheckCircle2 size={12} /> บันทึกแล้ว</span>}
+          {autoEnabled ? `เปิดอยู่ — sync ทุกวัน เวลา ${syncTime} น.` : 'ปิดอยู่'}
+          {scheduleSaved && (
+            <span className="ml-auto text-emerald-600 flex items-center gap-1">
+              <CheckCircle2 size={12} /> บันทึกแล้ว
+            </span>
+          )}
         </div>
 
-        {/* Time list */}
-        {syncTimes.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-4">
-            {syncTimes.map(t => (
-              <div key={t} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-sm font-semibold"
-                style={{ borderColor: PRIMARY, color: PRIMARY, backgroundColor: '#E6F4F4' }}>
-                <Clock size={12} />
-                {t}
-                <button onClick={() => removeTime(t)} className="ml-0.5 text-slate-400 hover:text-red-500 transition-colors">
-                  <XCircle size={13} />
-                </button>
-              </div>
-            ))}
+        {/* Time picker */}
+        <div className="flex gap-2 items-center">
+          <div className="flex-1">
+            <label className="text-[11px] text-slate-500 mb-1 block">เวลา sync</label>
+            <input
+              type="time"
+              value={syncTime}
+              onChange={e => setSyncTime(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:border-transparent"
+              style={{ '--tw-ring-color': PRIMARY } as React.CSSProperties}
+            />
           </div>
-        )}
-
-        {/* Add time */}
-        <div className="flex gap-2">
-          <input
-            type="time"
-            value={newTime}
-            onChange={e => setNewTime(e.target.value)}
-            className="flex-1 px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:border-transparent"
-            style={{ '--tw-ring-color': PRIMARY } as React.CSSProperties}
-          />
           <button
-            onClick={addTime}
-            disabled={!newTime || savingSchedule}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-40 transition-opacity"
+            onClick={handleSaveSchedule}
+            disabled={savingSchedule}
+            className="mt-5 flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-40 transition-opacity"
             style={{ backgroundColor: PRIMARY }}
           >
-            {savingSchedule ? <RefreshCw size={14} className="animate-spin" /> : <Plus size={14} />}
-            เพิ่มเวลา
+            {savingSchedule ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
+            บันทึก
           </button>
         </div>
-        <p className="text-[11px] text-slate-400 mt-2">* ระบบจะปัดเป็นทุกต้นชั่วโมง เช่น 09:30 → 09:00</p>
       </div>
 
       {/* Result */}
