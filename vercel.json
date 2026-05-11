@@ -1,18 +1,6 @@
 {
   "crons": [
     {
-      "path": "/api/cron/remind",
-      "schedule": "0 2 * * *"
-    },
-    {
-      "path": "/api/cron/followup",
-      "schedule": "0 3 * * *"
-    },
-    {
-      "path": "/api/cron/birthday",
-      "schedule": "0 1 * * *"
-    },
-    {
       "path": "/api/cron/sheets-sync",
       "schedule": "0 * * * *"
     }
