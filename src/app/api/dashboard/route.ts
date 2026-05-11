@@ -29,16 +29,18 @@ function getThaiNow() {
   return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
 }
 
-// ดึงข้อมูลทั้งหมดโดย paginate รอบ Supabase max_rows=1000 limit
-async function fetchAll(table: string, clinic_id: string, fields = '*') {
+// ดึงข้อมูลโดย paginate + filter ที่ DB เพื่อลด payload
+async function fetchAll(table: string, clinic_id: string, fields = '*', from?: string, to?: string) {
   const PAGE = 1000;
   let all: any[] = [];
   let page = 0;
   while (true) {
-    const { data, error } = await supabaseAdmin
+    let q = supabaseAdmin
       .from(table).select(fields)
-      .eq('clinic_id', clinic_id)
-      .range(page * PAGE, (page + 1) * PAGE - 1);
+      .eq('clinic_id', clinic_id);
+    if (from) q = q.gte('created_at', from);
+    if (to)   q = q.lte('created_at', to + 'T23:59:59+07:00');
+    const { data, error } = await q.range(page * PAGE, (page + 1) * PAGE - 1);
     if (error || !data || data.length === 0) break;
     all = all.concat(data);
     if (data.length < PAGE) break;
@@ -58,9 +60,15 @@ export async function GET(req: NextRequest) {
   const startDate = req.nextUrl.searchParams.get('startDate');
   const endDate = req.nextUrl.searchParams.get('endDate');
 
+  // Default window: 13 months (ครอบ 12-month chart + current month KPIs)
+  const defaultFrom = new Date();
+  defaultFrom.setMonth(defaultFrom.getMonth() - 13);
+  const queryFrom = startDate ?? defaultFrom.toISOString().slice(0, 10);
+  const queryTo   = endDate ?? undefined;
+
   const [allVisits, allPatients, { data: clinicRow }, enabledFeatures] = await Promise.all([
-    fetchAll('visits', clinic_id),
-    fetchAll('patients', clinic_id),
+    fetchAll('visits', clinic_id, '*', queryFrom, queryTo),
+    fetchAll('patients', clinic_id, '*', queryFrom, queryTo),
     supabaseAdmin.from('clinics').select('tier, name').eq('id', clinic_id).single(),
     getEnabledFeatures(clinic_id),
   ]);
