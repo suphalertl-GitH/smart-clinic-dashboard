@@ -268,8 +268,26 @@ export async function GET(req: NextRequest) {
       }
       return days;
     })(),
+    // 12-month aggregate (used by Sales Analytics)
     revenueTrendMonthly: (() => {
-      // Day-by-day for current calendar month (1 → last day of month)
+      const months: { month: string; revenue: number; new: number; returning: number; transactions: number }[] = [];
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date(nowThai);
+        d.setMonth(d.getMonth() - i, 1);
+        const key = getMonthKey(d);
+        const label = toLabel(key);
+        months.push({
+          month: label,
+          revenue: monthlyRevenueMap[key] || 0,
+          new: monthlyNew[key] || 0,
+          returning: monthlyRet[key] || 0,
+          transactions: monthlyTrx[key] || 0,
+        });
+      }
+      return months;
+    })(),
+    // Day-by-day for current calendar month (used by Executive Overview Month toggle)
+    revenueTrendThisMonth: (() => {
       const days: { month: string; revenue: number; new: number; returning: number; transactions: number }[] = [];
       const y = nowThai.getFullYear();
       const m = nowThai.getMonth();

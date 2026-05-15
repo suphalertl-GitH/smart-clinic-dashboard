@@ -43,12 +43,12 @@ function Pill<T extends string>({ value, options, onChange }: {
 }
 
 export default function ExecutiveOverview({ data, theme, enabledFeatures = [], hasDateFilter = false }: Props) {
-  const { kpis, revenueTrend, revenueTrendMonthly, topTreatments, topTreatmentsWeek, topTreatmentsMonth, topDoctors } = data;
+  const { kpis, revenueTrend, revenueTrendThisMonth, topTreatments, topTreatmentsWeek, topTreatmentsMonth, topDoctors } = data;
   const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('week');
   const [trendMetric, setTrendMetric] = useState<TrendMetric>('revenue');
   const [treatmentPeriod, setTreatmentPeriod] = useState<TrendPeriod>('month');
 
-  const trendData = trendPeriod === 'week' ? revenueTrend : revenueTrendMonthly;
+  const trendData = trendPeriod === 'week' ? revenueTrend : revenueTrendThisMonth;
   const isMoneyMetric = trendMetric === 'revenue';
   const metricLabel = METRIC_LABEL[trendMetric];
 
