@@ -1,26 +1,56 @@
 'use client';
 
+import { useState } from 'react';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { fmt, themeChartColors } from './KpiCard';
 
 type Theme = { bg: string; bgDark: string; accent: string; gradient: string };
 type Props = { data: any; theme: Theme };
 
+type Period = 'week' | 'month';
+
+function PeriodPill({ value, onChange }: { value: Period; onChange: (v: Period) => void }) {
+  const opts: { v: Period; label: string }[] = [{ v: 'week', label: 'Week' }, { v: 'month', label: 'Month' }];
+  return (
+    <div className="inline-flex rounded-lg bg-slate-100 p-0.5 text-[11px]">
+      {opts.map(o => (
+        <button key={o.v} type="button" onClick={() => onChange(o.v)}
+          className={`px-2.5 py-1 rounded-md transition ${
+            value === o.v ? 'bg-white shadow-sm text-slate-700 font-medium' : 'text-slate-500 hover:text-slate-700'
+          }`}>
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function CustomerInsights({ data, theme }: Props) {
   const PRIMARY = theme.bg;
   const SAGE    = theme.accent;
   const COLORS  = themeChartColors(theme);
-  const { newRegistrationsByMonth, customerTypeDistribution, acquisitionSource, visitFrequency, topPatients } = data;
+
+  const [period, setPeriod] = useState<Period>('month');
+  const bundle = (period === 'week' ? data.customerInsightsWeek : data.customerInsightsMonth) ?? {};
+  const newRegistrations    = bundle.newRegistrations    ?? data.newRegistrationsByMonth ?? [];
+  const customerTypeDistribution = bundle.customerType    ?? data.customerTypeDistribution ?? [];
+  const acquisitionSource   = bundle.acquisitionSource   ?? data.acquisitionSource ?? [];
+  const visitFrequency      = bundle.visitFrequency      ?? data.visitFrequency ?? [];
+  const topPatients         = bundle.topPatients         ?? data.topPatients ?? [];
 
   return (
     <div className="space-y-5">
 
+      <div className="flex items-center justify-end">
+        <PeriodPill value={period} onChange={setPeriod} />
+      </div>
+
       {/* ── New Registrations + Customer Type (โครงสร้างเดิม) ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
-          <h3 className="text-sm font-heading font-semibold mb-4 text-slate-700">New Patient Registrations by Month</h3>
+          <h3 className="text-sm font-heading font-semibold mb-4 text-slate-700">New Patient Registrations</h3>
           <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={newRegistrationsByMonth}>
+            <LineChart data={newRegistrations}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
               <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} />
               <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />

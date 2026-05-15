@@ -231,6 +231,87 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // ── Customer Insights page bundles (Week / Month windows) ──
+  // Week = rolling 7 days from today; Month = current calendar month (1 → last day)
+  const monthStartBkk = new Date(nowThai); monthStartBkk.setDate(1);
+  const lastDayOfMonth = new Date(nowThai.getFullYear(), nowThai.getMonth() + 1, 0).getDate();
+  const monthEndBkk = new Date(nowThai); monthEndBkk.setDate(lastDayOfMonth); monthEndBkk.setHours(23, 59, 59, 999);
+
+  const inDateWindow = (dateStr: string, start: Date, end: Date) => {
+    const t = new Date(new Date(dateStr).toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
+    return t >= start && t <= end;
+  };
+
+  type InsightsBundle = {
+    customerType: { name: string; value: number }[];
+    acquisitionSource: { source: string; count: number }[];
+    visitFrequency: { range: string; count: number }[];
+    topPatients: { hn: string; visits: number; revenue: number; avgPerVisit: number }[];
+    newRegistrations: { month: string; count: number }[];
+  };
+
+  function buildInsightsBundle(windowVisits: any[], windowPatients: any[], dailyAxis: { key: string; label: string }[]): InsightsBundle {
+    const ctMap: Record<string, number> = {};
+    const srcMap: Record<string, number> = {};
+    const patientVisitCount: Record<string, number> = {};
+    const pm: Record<string, { revenue: number; visits: number }> = {};
+    for (const v of windowVisits) {
+      const ct = v.customer_type || 'returning';
+      ctMap[ct] = (ctMap[ct] || 0) + 1;
+      if (ct === 'new') {
+        const src = patientSourceByHn[v.hn] || 'ไม่ระบุ';
+        srcMap[src] = (srcMap[src] || 0) + 1;
+      }
+      if (v.hn) patientVisitCount[v.hn] = (patientVisitCount[v.hn] || 0) + 1;
+      const hn = v.hn ?? 'Unknown';
+      if (!pm[hn]) pm[hn] = { revenue: 0, visits: 0 };
+      pm[hn].revenue += parseFloat(String(v.price)) || 0;
+      pm[hn].visits++;
+    }
+    const counts = Object.values(patientVisitCount);
+    const regDailyMap: Record<string, number> = {};
+    for (const p of windowPatients) {
+      const t = new Date(new Date(p.created_at).toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
+      const k = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+      regDailyMap[k] = (regDailyMap[k] || 0) + 1;
+    }
+    return {
+      customerType: Object.entries(ctMap).map(([name, value]) => ({ name, value })),
+      acquisitionSource: Object.entries(srcMap).sort(([, a], [, b]) => b - a).map(([source, count]) => ({ source, count })),
+      visitFrequency: [
+        { range: '1 visit',    count: counts.filter(c => c === 1).length },
+        { range: '2-3 visits', count: counts.filter(c => c >= 2 && c <= 3).length },
+        { range: '4-6 visits', count: counts.filter(c => c >= 4 && c <= 6).length },
+        { range: '7+ visits',  count: counts.filter(c => c >= 7).length },
+      ],
+      topPatients: Object.entries(pm)
+        .filter(([hn]) => hn !== 'Unknown')
+        .sort(([, a], [, b]) => b.revenue - a.revenue)
+        .slice(0, 10)
+        .map(([hn, d]) => ({ hn, visits: d.visits, revenue: d.revenue, avgPerVisit: d.visits ? Math.round(d.revenue / d.visits) : 0 })),
+      newRegistrations: dailyAxis.map(({ key, label }) => ({ month: label, count: regDailyMap[key] || 0 })),
+    };
+  }
+
+  const weekVisits   = (allVisits   ?? []).filter(v => inDateWindow(v.created_at, weekStartBkk, nowThai));
+  const monthVisits  = (allVisits   ?? []).filter(v => inDateWindow(v.created_at, monthStartBkk, monthEndBkk));
+  const weekPatients = (allPatients ?? []).filter(p => inDateWindow(p.created_at, weekStartBkk, nowThai));
+  const monthPatients= (allPatients ?? []).filter(p => inDateWindow(p.created_at, monthStartBkk, monthEndBkk));
+
+  const weekAxis: { key: string; label: string }[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(nowThai); d.setDate(d.getDate() - i);
+    weekAxis.push({ key: d.toISOString().split('T')[0], label: `${d.getDate()}/${d.getMonth() + 1}` });
+  }
+  const monthAxis: { key: string; label: string }[] = [];
+  for (let day = 1; day <= lastDayOfMonth; day++) {
+    const d = new Date(nowThai); d.setDate(day);
+    monthAxis.push({ key: d.toISOString().split('T')[0], label: String(day) });
+  }
+
+  const customerInsightsWeek  = buildInsightsBundle(weekVisits,  weekPatients,  weekAxis);
+  const customerInsightsMonth = buildInsightsBundle(monthVisits, monthPatients, monthAxis);
+
   const SALES_TARGET = 3600000;
 
   const catTotals: Record<string, number> = { Botox: 0, Filler: 0, 'Skin quality': 0, EBD: 0, Surgery: 0, Other: 0 };
@@ -342,6 +423,8 @@ export async function GET(req: NextRequest) {
     topPatients: Object.entries(patientMap).filter(([hn]) => hn !== 'Unknown')
       .sort(([, a], [, b]) => b.revenue - a.revenue).slice(0, 10)
       .map(([hn, d]) => ({ hn, visits: d.visits, revenue: d.revenue, avgPerVisit: d.visits ? Math.round(d.revenue / d.visits) : 0 })),
+    customerInsightsWeek,
+    customerInsightsMonth,
     totalLeads,
     conversionRateMarketing: totalLeads > 0 ? (convertedLeads / totalLeads) * 100 : 0,
     totalChannels: Object.keys(sourceMap).length,
