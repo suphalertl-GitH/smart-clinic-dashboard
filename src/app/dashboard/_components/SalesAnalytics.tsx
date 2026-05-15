@@ -115,29 +115,35 @@ export default function SalesAnalytics({ data, theme }: Props) {
         </div>
 
         {/* Donut: Revenue by Treatment */}
-        <div className="lg:col-span-2 bg-white rounded-2xl p-5 border border-slate-100 shadow-sm flex flex-col">
-          <h3 className="text-base font-heading font-semibold text-slate-800 mb-2">Revenue by Treatment</h3>
-          <ResponsiveContainer width="100%" height={200}>
-            <PieChart>
-              <Pie data={revenueShareByCategory} cx="50%" cy="50%"
-                innerRadius={60} outerRadius={90} dataKey="value" paddingAngle={3}>
-                {revenueShareByCategory.map((e: any, i: number) => (
-                  <Cell key={i} fill={CAT_COLORS[e.name] || COLORS[i % COLORS.length]} />
+        {(() => {
+          const totalShare = (revenueShareByCategory ?? []).reduce((s: number, x: any) => s + (Number(x.value) || 0), 0) || 1;
+          const pct = (v: number) => `${((v / totalShare) * 100).toFixed(1)}%`;
+          return (
+            <div className="lg:col-span-2 bg-white rounded-2xl p-5 border border-slate-100 shadow-sm flex flex-col">
+              <h3 className="text-base font-heading font-semibold text-slate-800 mb-2">Revenue by Treatment</h3>
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie data={revenueShareByCategory} cx="50%" cy="50%"
+                    innerRadius={60} outerRadius={90} dataKey="value" paddingAngle={3}>
+                    {revenueShareByCategory.map((e: any, i: number) => (
+                      <Cell key={i} fill={CAT_COLORS[e.name] || COLORS[i % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)', fontSize: 12 }}
+                    formatter={(v) => [pct(Number(v ?? 0))]} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex flex-wrap justify-center gap-x-3 gap-y-1.5 mt-auto">
+                {revenueShareByCategory.map((item: any, i: number) => (
+                  <div key={i} className="flex items-center gap-1 text-xs text-slate-500">
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: CAT_COLORS[item.name] || COLORS[i % COLORS.length] }} />
+                    {item.name} <span className="text-slate-400">({pct(item.value)})</span>
+                  </div>
                 ))}
-              </Pie>
-              <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)', fontSize: 12 }}
-                formatter={(v) => [fmt(Number(v ?? 0))]} />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="flex flex-wrap justify-center gap-x-3 gap-y-1.5 mt-auto">
-            {revenueShareByCategory.map((item: any, i: number) => (
-              <div key={i} className="flex items-center gap-1 text-xs text-slate-500">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: CAT_COLORS[item.name] || COLORS[i % COLORS.length] }} />
-                {item.name}
               </div>
-            ))}
-          </div>
-        </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* ── Row 2: Doctor Performance + Avg Ticket Size ── */}
