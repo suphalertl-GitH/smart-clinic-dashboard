@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
-// GET /api/cron/sheets-sync — ทำงานทุก 1 ชั่วโมง ตรวจ schedule แล้ว sync อัตโนมัติ
+// Called by an external hourly scheduler (cron-job.org) with Bearer CRON_SECRET.
+// Checks the settings table; only the clinics whose sync_times contain the current
+// Bangkok HH:00 get their sync triggered. Up to 60s to wait for /sheets-sync/run.
+export const maxDuration = 60;
+
 export async function GET(req: NextRequest) {
   const auth = req.headers.get('authorization');
   if (auth !== `Bearer ${process.env.CRON_SECRET ?? 'clinic2026secret'}`) {

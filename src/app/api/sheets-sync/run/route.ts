@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
+// Full sync can hit the network for two CSV exports and dozens of upserts;
+// allow up to 60s (max for Vercel Hobby) to avoid mid-run timeouts.
+export const maxDuration = 60;
+
 const SHEET_ID  = '1OAMPO528LmZZb2x389-RweCGtdRHLsfu_t9csfzdjPw';
 const GID_PAT   = '0';
 const GID_VISIT = '765833505';
