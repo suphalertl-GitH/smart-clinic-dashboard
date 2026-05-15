@@ -89,17 +89,25 @@ async function syncPatients(clinicId: string, patRows: Record<string, string>[],
       if (filterToday) return matchDate(r['Timestamp'], filterToday);
       return true;
     })
-    .map(r => ({
-      hn:                String(r['HN'] || '').trim(),
-      full_name:         String(r['ชื่อ-นามสกุล'] || '').trim(),
-      phone:             s(r['เบอร์โทรศัพท์']),
-      allergies:         s(r['ประวัติแพ้ยา']),
-      disease:           s(r['โรคประจำตัว']),
-      face_image_url:    s(r['อัปโหลดรูปใบหน้า']),
-      source:            s(r['Source']),
-      sales_name:        s(r['Sales_Name']),
-      consent_image_url: s(r['Consent (URL)']),
-    }))
+    .map(r => {
+      // Map sheet Timestamp -> created_at so dashboard date filters and
+      // newRegistrationsByMonth reflect when the patient actually registered,
+      // not when the sync happened. Omit on parse failure so DB default is used
+      // for new rows and existing created_at is preserved on conflict.
+      const regDate = parseThaiDate(r['Timestamp']);
+      return {
+        hn:                String(r['HN'] || '').trim(),
+        full_name:         String(r['ชื่อ-นามสกุล'] || '').trim(),
+        phone:             s(r['เบอร์โทรศัพท์']),
+        allergies:         s(r['ประวัติแพ้ยา']),
+        disease:           s(r['โรคประจำตัว']),
+        face_image_url:    s(r['อัปโหลดรูปใบหน้า']),
+        source:            s(r['Source']),
+        sales_name:        s(r['Sales_Name']),
+        consent_image_url: s(r['Consent (URL)']),
+        ...(regDate ? { created_at: new Date(regDate + 'T12:00:00+07:00').toISOString() } : {}),
+      };
+    })
     .filter(p => p.hn);
 
   let updated = 0;
