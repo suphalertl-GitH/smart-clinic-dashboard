@@ -43,16 +43,23 @@ function Pill<T extends string>({ value, options, onChange }: {
 }
 
 export default function ExecutiveOverview({ data, theme, enabledFeatures = [], hasDateFilter = false }: Props) {
-  const { kpis, revenueTrend, revenueTrendThisMonth, topTreatments, topTreatmentsWeek, topTreatmentsMonth, topDoctors } = data;
+  const { kpis, revenueTrend, revenueTrendMonthly, revenueTrendThisMonth, topTreatments, topTreatmentsWeek, topTreatmentsMonth, topDoctors } = data;
   const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('week');
   const [trendMetric, setTrendMetric] = useState<TrendMetric>('revenue');
   const [treatmentPeriod, setTreatmentPeriod] = useState<TrendPeriod>('month');
 
-  const trendData = trendPeriod === 'week' ? revenueTrend : revenueTrendThisMonth;
-  const isMoneyMetric = trendMetric === 'revenue';
-  const metricLabel = METRIC_LABEL[trendMetric];
+  // When a date filter is active, the rolling-window toggles would show empty data,
+  // so we hide them and fall back to filter-aware datasets.
+  const effectiveTrendMetric: TrendMetric = hasDateFilter ? 'revenue' : trendMetric;
+  const trendData = hasDateFilter
+    ? (revenueTrendMonthly ?? [])
+    : (trendPeriod === 'week' ? revenueTrend : revenueTrendThisMonth);
+  const isMoneyMetric = effectiveTrendMetric === 'revenue';
+  const metricLabel = METRIC_LABEL[effectiveTrendMetric];
 
-  const treatmentData = (treatmentPeriod === 'week' ? topTreatmentsWeek : topTreatmentsMonth) ?? topTreatments ?? [];
+  const treatmentData = hasDateFilter
+    ? (topTreatments ?? [])
+    : ((treatmentPeriod === 'week' ? topTreatmentsWeek : topTreatmentsMonth) ?? topTreatments ?? []);
 
   const accentGradient = `linear-gradient(135deg, ${theme.accent} 0%, #f59e0b 100%)`;
   const COLORS = themeChartColors(theme);
@@ -111,26 +118,28 @@ export default function ExecutiveOverview({ data, theme, enabledFeatures = [], h
         <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
           <div className="flex items-start justify-between gap-2 mb-4 flex-wrap">
             <h3 className="text-sm font-heading font-semibold text-slate-700">{metricLabel} Trend</h3>
-            <div className="flex flex-col gap-1.5 items-end">
-              <Pill<TrendMetric>
-                value={trendMetric}
-                onChange={setTrendMetric}
-                options={[
-                  { v: 'revenue', label: 'Revenue' },
-                  { v: 'new', label: 'New' },
-                  { v: 'returning', label: 'Ret.' },
-                  { v: 'transactions', label: 'Trx' },
-                ]}
-              />
-              <Pill<TrendPeriod>
-                value={trendPeriod}
-                onChange={setTrendPeriod}
-                options={[
-                  { v: 'week', label: 'Week' },
-                  { v: 'month', label: 'Month' },
-                ]}
-              />
-            </div>
+            {!hasDateFilter && (
+              <div className="flex flex-col gap-1.5 items-end">
+                <Pill<TrendMetric>
+                  value={trendMetric}
+                  onChange={setTrendMetric}
+                  options={[
+                    { v: 'revenue', label: 'Revenue' },
+                    { v: 'new', label: 'New' },
+                    { v: 'returning', label: 'Ret.' },
+                    { v: 'transactions', label: 'Trx' },
+                  ]}
+                />
+                <Pill<TrendPeriod>
+                  value={trendPeriod}
+                  onChange={setTrendPeriod}
+                  options={[
+                    { v: 'week', label: 'Week' },
+                    { v: 'month', label: 'Month' },
+                  ]}
+                />
+              </div>
+            )}
           </div>
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={trendData}>
@@ -144,7 +153,7 @@ export default function ExecutiveOverview({ data, theme, enabledFeatures = [], h
                 contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)', fontSize: 12 }}
                 formatter={(v) => [isMoneyMetric ? fmt(Number(v ?? 0)) : String(v ?? 0), metricLabel]}
               />
-              <Line type="monotone" dataKey={trendMetric} stroke={theme.bg} strokeWidth={2.5}
+              <Line type="monotone" dataKey={effectiveTrendMetric} stroke={theme.bg} strokeWidth={2.5}
                 dot={{ r: 4, fill: theme.bg, stroke: '#fff', strokeWidth: 2 }}
                 activeDot={{ r: 6, fill: theme.bg }} />
             </LineChart>
@@ -154,14 +163,16 @@ export default function ExecutiveOverview({ data, theme, enabledFeatures = [], h
         <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
           <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
             <h3 className="text-sm font-heading font-semibold text-slate-700">Top Treatments by Revenue</h3>
-            <Pill<TrendPeriod>
-              value={treatmentPeriod}
-              onChange={setTreatmentPeriod}
-              options={[
-                { v: 'week', label: 'Week' },
-                { v: 'month', label: 'Month' },
-              ]}
-            />
+            {!hasDateFilter && (
+              <Pill<TrendPeriod>
+                value={treatmentPeriod}
+                onChange={setTreatmentPeriod}
+                options={[
+                  { v: 'week', label: 'Week' },
+                  { v: 'month', label: 'Month' },
+                ]}
+              />
+            )}
           </div>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={treatmentData.slice(0, 8)} layout="vertical">

@@ -5,7 +5,7 @@ import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Cart
 import { fmt, themeChartColors } from './KpiCard';
 
 type Theme = { bg: string; bgDark: string; accent: string; gradient: string };
-type Props = { data: any; theme: Theme };
+type Props = { data: any; theme: Theme; hasDateFilter?: boolean };
 
 type Period = 'week' | 'month';
 
@@ -25,31 +25,37 @@ function PeriodPill({ value, onChange }: { value: Period; onChange: (v: Period) 
   );
 }
 
-export default function CustomerInsights({ data, theme }: Props) {
+export default function CustomerInsights({ data, theme, hasDateFilter = false }: Props) {
   const PRIMARY = theme.bg;
   const SAGE    = theme.accent;
   const COLORS  = themeChartColors(theme);
 
   const [period, setPeriod] = useState<Period>('month');
   const bundle = (period === 'week' ? data.customerInsightsWeek : data.customerInsightsMonth) ?? {};
-  const newRegistrations    = bundle.newRegistrations    ?? data.newRegistrationsByMonth ?? [];
-  const customerTypeDistribution = bundle.customerType    ?? data.customerTypeDistribution ?? [];
-  const acquisitionSource   = bundle.acquisitionSource   ?? data.acquisitionSource ?? [];
-  const visitFrequency      = bundle.visitFrequency      ?? data.visitFrequency ?? [];
-  // Top 10 Patients stays on the original full-range data — not affected by the page toggle
+  // When a date filter is active, the rolling-window bundle would be empty if the
+  // selected range doesn't overlap today — fall back to filter-aware top-level fields.
+  const newRegistrations    = hasDateFilter ? (data.newRegistrationsByMonth ?? []) : (bundle.newRegistrations ?? data.newRegistrationsByMonth ?? []);
+  const customerTypeDistribution = hasDateFilter ? (data.customerTypeDistribution ?? []) : (bundle.customerType ?? data.customerTypeDistribution ?? []);
+  const acquisitionSource   = hasDateFilter ? (data.acquisitionSource ?? []) : (bundle.acquisitionSource ?? data.acquisitionSource ?? []);
+  const visitFrequency      = hasDateFilter ? (data.visitFrequency ?? []) : (bundle.visitFrequency ?? data.visitFrequency ?? []);
+  // Top 10 Patients always uses the full-range top-level data — not affected by the page toggle
   const topPatients         = data.topPatients ?? [];
+  // When date filter is active, the unit reverts to patient-registration (top-level field)
+  const newChartTitle = hasDateFilter ? 'New Patient Registrations' : 'New Customer Visits';
 
   return (
     <div className="space-y-5">
 
-      <div className="flex items-center justify-end">
-        <PeriodPill value={period} onChange={setPeriod} />
-      </div>
+      {!hasDateFilter && (
+        <div className="flex items-center justify-end">
+          <PeriodPill value={period} onChange={setPeriod} />
+        </div>
+      )}
 
       {/* ── New Registrations + Customer Type (โครงสร้างเดิม) ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
-          <h3 className="text-sm font-heading font-semibold mb-4 text-slate-700">New Customer Visits</h3>
+          <h3 className="text-sm font-heading font-semibold mb-4 text-slate-700">{newChartTitle}</h3>
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={newRegistrations}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
