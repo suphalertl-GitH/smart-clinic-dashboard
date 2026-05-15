@@ -144,8 +144,9 @@ export async function GET(req: NextRequest) {
       currentMonthCompleted++; // ทุก visit ที่บันทึกถือว่า completed
     }
 
+    // Top Doctors: scope to current calendar month only, regardless of dashboard date filter
     const dr = v.doctor;
-    if (dr) {
+    if (dr && mk === currentMonthKey) {
       if (!doctorMap[dr]) doctorMap[dr] = { revenue: 0, visits: 0 };
       doctorMap[dr].revenue += revenue; doctorMap[dr].visits++;
     }

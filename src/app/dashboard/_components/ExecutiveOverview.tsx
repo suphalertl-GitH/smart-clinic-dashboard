@@ -108,7 +108,7 @@ export default function ExecutiveOverview({ data, theme, enabledFeatures = [], h
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
           <h3 className="text-sm font-heading font-semibold mb-4 flex items-center gap-1.5 text-slate-700">
-            <Activity size={14} style={{ color: theme.bg }} /> Top Doctors by Revenue
+            <Activity size={14} style={{ color: theme.bg }} /> Top Doctors by Revenue (Monthly)
           </h3>
           <div className="space-y-4">
             {topDoctors.map((doc: any, i: number) => {
