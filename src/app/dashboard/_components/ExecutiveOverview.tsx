@@ -43,13 +43,16 @@ function Pill<T extends string>({ value, options, onChange }: {
 }
 
 export default function ExecutiveOverview({ data, theme, enabledFeatures = [], hasDateFilter = false }: Props) {
-  const { kpis, revenueTrend, revenueTrendMonthly, topTreatments, topDoctors } = data;
+  const { kpis, revenueTrend, revenueTrendMonthly, topTreatments, topTreatmentsWeek, topTreatmentsMonth, topDoctors } = data;
   const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('week');
   const [trendMetric, setTrendMetric] = useState<TrendMetric>('revenue');
+  const [treatmentPeriod, setTreatmentPeriod] = useState<TrendPeriod>('month');
 
   const trendData = trendPeriod === 'week' ? revenueTrend : revenueTrendMonthly;
   const isMoneyMetric = trendMetric === 'revenue';
   const metricLabel = METRIC_LABEL[trendMetric];
+
+  const treatmentData = (treatmentPeriod === 'week' ? topTreatmentsWeek : topTreatmentsMonth) ?? topTreatments ?? [];
 
   const accentGradient = `linear-gradient(135deg, ${theme.accent} 0%, #f59e0b 100%)`;
   const COLORS = themeChartColors(theme);
@@ -149,9 +152,19 @@ export default function ExecutiveOverview({ data, theme, enabledFeatures = [], h
         </div>
 
         <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
-          <h3 className="text-sm font-heading font-semibold mb-4 text-slate-700">Top Treatments by Revenue</h3>
+          <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
+            <h3 className="text-sm font-heading font-semibold text-slate-700">Top Treatments by Revenue</h3>
+            <Pill<TrendPeriod>
+              value={treatmentPeriod}
+              onChange={setTreatmentPeriod}
+              options={[
+                { v: 'week', label: 'Week' },
+                { v: 'month', label: 'Month' },
+              ]}
+            />
+          </div>
           <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={topTreatments.slice(0, 8)} layout="vertical">
+            <BarChart data={treatmentData.slice(0, 8)} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
               <XAxis type="number" tickFormatter={v => `฿${Math.round(v / 1000)}k`} tick={{ fontSize: 10, fill: '#94a3b8' }} />
               <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} width={90} />
@@ -160,7 +173,7 @@ export default function ExecutiveOverview({ data, theme, enabledFeatures = [], h
                 formatter={(v) => [fmt(Number(v ?? 0)), 'Revenue']}
               />
               <Bar dataKey="revenue" radius={[0, 6, 6, 0]}>
-                {topTreatments.slice(0, 8).map((_: any, i: number) => (
+                {treatmentData.slice(0, 8).map((_: any, i: number) => (
                   <Cell key={i} fill={COLORS[i % COLORS.length]} />
                 ))}
               </Bar>

@@ -196,15 +196,26 @@ export async function GET(req: NextRequest) {
   const conversionRate = currentMonthVisits > 0 ? (currentMonthCompleted / currentMonthVisits) * 100 : 0;
 
   // Weekly: rolling 7 days from today, independent of user date filter
+  // Also build week/month treatment maps for the toggle on Top Treatments chart
   const weekStartBkk = new Date(nowThai); weekStartBkk.setDate(weekStartBkk.getDate() - 7);
   let weekNew = 0;
   let weekRet = 0;
+  const treatmentWeekMap: Record<string, number> = {};
+  const treatmentMonthMap: Record<string, number> = {};
   for (const v of allVisits ?? []) {
     const createdThai = new Date(new Date(v.created_at).toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
-    if (createdThai >= weekStartBkk && createdThai <= nowThai) {
+    const revenue = parseFloat(String(v.price)) || 0;
+    const tn = v.treatment_name ?? 'Unknown';
+    const inWeek = createdThai >= weekStartBkk && createdThai <= nowThai;
+    const inMonth = getMonthKey(createdThai) === currentMonthKey;
+    if (inWeek) {
       const ct = v.customer_type || 'returning';
       if (ct === 'new') weekNew++;
       else weekRet++;
+      treatmentWeekMap[tn] = (treatmentWeekMap[tn] || 0) + revenue;
+    }
+    if (inMonth) {
+      treatmentMonthMap[tn] = (treatmentMonthMap[tn] || 0) + revenue;
     }
   }
 
@@ -278,6 +289,8 @@ export async function GET(req: NextRequest) {
       return days;
     })(),
     topTreatments: Object.entries(treatmentMap).sort(([, a], [, b]) => b - a).slice(0, 10).map(([name, revenue]) => ({ name, revenue })),
+    topTreatmentsWeek: Object.entries(treatmentWeekMap).sort(([, a], [, b]) => b - a).slice(0, 10).map(([name, revenue]) => ({ name, revenue })),
+    topTreatmentsMonth: Object.entries(treatmentMonthMap).sort(([, a], [, b]) => b - a).slice(0, 10).map(([name, revenue]) => ({ name, revenue })),
     appointmentsByStatus: [{ status: 'Completed', count: visits.length }],
     topDoctors: Object.entries(doctorMap)
       .sort(([, a], [, b]) => b.revenue - a.revenue).slice(0, 5).map(([name, d]) => ({ name, ...d })),
