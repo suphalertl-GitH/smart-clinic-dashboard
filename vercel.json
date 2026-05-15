@@ -1,8 +1,1 @@
-{
-  "crons": [
-    {
-      "path": "/api/cron/sheets-sync",
-      "schedule": "0 * * * *"
-    }
-  ]
-}
+{}
