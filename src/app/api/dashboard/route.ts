@@ -250,17 +250,21 @@ export async function GET(req: NextRequest) {
     newRegistrations: { month: string; count: number }[];
   };
 
-  function buildInsightsBundle(windowVisits: any[], windowPatients: any[], dailyAxis: { key: string; label: string }[]): InsightsBundle {
+  function buildInsightsBundle(windowVisits: any[], dailyAxis: { key: string; label: string }[]): InsightsBundle {
     const ctMap: Record<string, number> = {};
     const srcMap: Record<string, number> = {};
     const patientVisitCount: Record<string, number> = {};
     const pm: Record<string, { revenue: number; visits: number }> = {};
+    const newVisitDailyMap: Record<string, number> = {};
     for (const v of windowVisits) {
       const ct = v.customer_type || 'returning';
       ctMap[ct] = (ctMap[ct] || 0) + 1;
       if (ct === 'new') {
         const src = patientSourceByHn[v.hn] || 'ไม่ระบุ';
         srcMap[src] = (srcMap[src] || 0) + 1;
+        const t = new Date(new Date(v.created_at).toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
+        const k = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+        newVisitDailyMap[k] = (newVisitDailyMap[k] || 0) + 1;
       }
       if (v.hn) patientVisitCount[v.hn] = (patientVisitCount[v.hn] || 0) + 1;
       const hn = v.hn ?? 'Unknown';
@@ -269,12 +273,6 @@ export async function GET(req: NextRequest) {
       pm[hn].visits++;
     }
     const counts = Object.values(patientVisitCount);
-    const regDailyMap: Record<string, number> = {};
-    for (const p of windowPatients) {
-      const t = new Date(new Date(p.created_at).toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
-      const k = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
-      regDailyMap[k] = (regDailyMap[k] || 0) + 1;
-    }
     return {
       customerType: Object.entries(ctMap).map(([name, value]) => ({ name, value })),
       acquisitionSource: Object.entries(srcMap).sort(([, a], [, b]) => b - a).map(([source, count]) => ({ source, count })),
@@ -289,14 +287,12 @@ export async function GET(req: NextRequest) {
         .sort(([, a], [, b]) => b.revenue - a.revenue)
         .slice(0, 10)
         .map(([hn, d]) => ({ hn, visits: d.visits, revenue: d.revenue, avgPerVisit: d.visits ? Math.round(d.revenue / d.visits) : 0 })),
-      newRegistrations: dailyAxis.map(({ key, label }) => ({ month: label, count: regDailyMap[key] || 0 })),
+      newRegistrations: dailyAxis.map(({ key, label }) => ({ month: label, count: newVisitDailyMap[key] || 0 })),
     };
   }
 
-  const weekVisits   = (allVisits   ?? []).filter(v => inDateWindow(v.created_at, weekStartBkk, nowThai));
-  const monthVisits  = (allVisits   ?? []).filter(v => inDateWindow(v.created_at, monthStartBkk, monthEndBkk));
-  const weekPatients = (allPatients ?? []).filter(p => inDateWindow(p.created_at, weekStartBkk, nowThai));
-  const monthPatients= (allPatients ?? []).filter(p => inDateWindow(p.created_at, monthStartBkk, monthEndBkk));
+  const weekVisits  = (allVisits ?? []).filter(v => inDateWindow(v.created_at, weekStartBkk, nowThai));
+  const monthVisits = (allVisits ?? []).filter(v => inDateWindow(v.created_at, monthStartBkk, monthEndBkk));
 
   const weekAxis: { key: string; label: string }[] = [];
   for (let i = 6; i >= 0; i--) {
@@ -309,8 +305,8 @@ export async function GET(req: NextRequest) {
     monthAxis.push({ key: d.toISOString().split('T')[0], label: String(day) });
   }
 
-  const customerInsightsWeek  = buildInsightsBundle(weekVisits,  weekPatients,  weekAxis);
-  const customerInsightsMonth = buildInsightsBundle(monthVisits, monthPatients, monthAxis);
+  const customerInsightsWeek  = buildInsightsBundle(weekVisits,  weekAxis);
+  const customerInsightsMonth = buildInsightsBundle(monthVisits, monthAxis);
 
   const SALES_TARGET = 3600000;
 

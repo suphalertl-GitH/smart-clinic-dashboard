@@ -49,7 +49,7 @@ export default function CustomerInsights({ data, theme }: Props) {
       {/* ── New Registrations + Customer Type (โครงสร้างเดิม) ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
-          <h3 className="text-sm font-heading font-semibold mb-4 text-slate-700">New Patient Registrations</h3>
+          <h3 className="text-sm font-heading font-semibold mb-4 text-slate-700">New Customer Visits</h3>
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={newRegistrations}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -58,7 +58,7 @@ export default function CustomerInsights({ data, theme }: Props) {
               <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)', fontSize: 12 }} />
               <Line type="monotone" dataKey="count" stroke={PRIMARY} strokeWidth={2.5}
                 dot={{ r: 4, fill: PRIMARY, stroke: '#fff', strokeWidth: 2 }}
-                activeDot={{ r: 6, fill: PRIMARY }} name="New Patients" />
+                activeDot={{ r: 6, fill: PRIMARY }} name="New Visits" />
             </LineChart>
           </ResponsiveContainer>
         </div>
