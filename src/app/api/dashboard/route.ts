@@ -258,21 +258,24 @@ export async function GET(req: NextRequest) {
       return days;
     })(),
     revenueTrendMonthly: (() => {
-      const months: { month: string; revenue: number; new: number; returning: number; transactions: number }[] = [];
-      for (let i = 11; i >= 0; i--) {
+      // Day-by-day for current calendar month (1 → last day of month)
+      const days: { month: string; revenue: number; new: number; returning: number; transactions: number }[] = [];
+      const y = nowThai.getFullYear();
+      const m = nowThai.getMonth();
+      const lastDay = new Date(y, m + 1, 0).getDate();
+      for (let day = 1; day <= lastDay; day++) {
         const d = new Date(nowThai);
-        d.setMonth(d.getMonth() - i, 1);
-        const key = getMonthKey(d);
-        const label = toLabel(key);
-        months.push({
-          month: label,
-          revenue: monthlyRevenueMap[key] || 0,
-          new: monthlyNew[key] || 0,
-          returning: monthlyRet[key] || 0,
-          transactions: monthlyTrx[key] || 0,
+        d.setDate(day);
+        const key = d.toISOString().split('T')[0];
+        days.push({
+          month: String(day),
+          revenue: dailyRevenueMap[key] || 0,
+          new: dailyNewMap[key] || 0,
+          returning: dailyRetMap[key] || 0,
+          transactions: dailyTrxMap[key] || 0,
         });
       }
-      return months;
+      return days;
     })(),
     topTreatments: Object.entries(treatmentMap).sort(([, a], [, b]) => b - a).slice(0, 10).map(([name, revenue]) => ({ name, revenue })),
     appointmentsByStatus: [{ status: 'Completed', count: visits.length }],
