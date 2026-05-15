@@ -100,6 +100,36 @@ export async function GET(req: NextRequest) {
   const prevDate = new Date(nowThai); prevDate.setMonth(prevDate.getMonth() - 1);
   const prevMonthKey = getMonthKey(prevDate);
 
+  // Patient lookups — built first so the main visits loop can determine "new" by
+  // patient registration date (not by visit.customer_type flag). allPatients is
+  // used so patients registered before the dashboard date range still resolve.
+  const patientSourceByHn: Record<string, string> = {};
+  const patientCreatedByHn: Record<string, Date> = {};
+  for (const p of allPatients ?? []) {
+    if (!p.hn) continue;
+    patientSourceByHn[p.hn] = (p.source as string | null) || 'ไม่ระบุ';
+    if (p.created_at) {
+      patientCreatedByHn[p.hn] = new Date(new Date(p.created_at).toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
+    }
+  }
+  const getCreatedMonthKey = (hn: string): string | null => {
+    const d = patientCreatedByHn[hn];
+    return d ? getMonthKey(d) : null;
+  };
+  const getCreatedBkkDate = (hn: string): string | null => {
+    const d = patientCreatedByHn[hn];
+    if (!d) return null;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const isPatientNewForRange = (hn: string): boolean => {
+    if (!startDate && !endDate) return false;
+    const dateStr = getCreatedBkkDate(hn);
+    if (!dateStr) return false;
+    if (startDate && dateStr < startDate) return false;
+    if (endDate && dateStr > endDate) return false;
+    return true;
+  };
+
   // Maps
   const monthlyRevenueMap: Record<string, number> = {};
   const dailyRevenueMap: Record<string, number> = {};
@@ -135,17 +165,23 @@ export async function GET(req: NextRequest) {
     monthlyRevenueMap[mk] = (monthlyRevenueMap[mk] || 0) + revenue;
     dailyRevenueMap[vDateStr] = (dailyRevenueMap[vDateStr] || 0) + revenue;
 
-    const ct = v.customer_type || 'returning';
-    if (ct === 'new') {
-      monthlyNew[mk] = (monthlyNew[mk] || 0) + 1; totalNew++;
+    // "New" by patient registration: patient registered in same month as the visit.
+    // For top-level / KPI with date filter, also check patient registered in filter range.
+    const isNewByMonth  = getCreatedMonthKey(v.hn) === mk;
+    const isNewInFilter = (startDate || endDate) ? isPatientNewForRange(v.hn) : false;
+    const isNewTopLevel = (startDate || endDate) ? isNewInFilter : isNewByMonth;
+
+    if (isNewByMonth) {
+      monthlyNew[mk] = (monthlyNew[mk] || 0) + 1;
       dailyNewMap[vDateStr] = (dailyNewMap[vDateStr] || 0) + 1;
     } else {
-      monthlyRet[mk] = (monthlyRet[mk] || 0) + 1; totalRet++;
+      monthlyRet[mk] = (monthlyRet[mk] || 0) + 1;
       dailyRetMap[vDateStr] = (dailyRetMap[vDateStr] || 0) + 1;
     }
+    if (isNewTopLevel) totalNew++; else totalRet++;
     monthlyTrx[mk] = (monthlyTrx[mk] || 0) + 1;
     dailyTrxMap[vDateStr] = (dailyTrxMap[vDateStr] || 0) + 1;
-    customerTypeMap[ct] = (customerTypeMap[ct] || 0) + 1;
+    customerTypeMap[isNewTopLevel ? 'new' : 'returning'] = (customerTypeMap[isNewTopLevel ? 'new' : 'returning'] || 0) + 1;
 
     const tn = v.treatment_name ?? 'Unknown';
     treatmentMap[tn] = (treatmentMap[tn] || 0) + revenue;
@@ -189,16 +225,16 @@ export async function GET(req: NextRequest) {
     patientMonthMap[getMonthKey(d)] = (patientMonthMap[getMonthKey(d)] || 0) + 1;
   }
 
-  // Patient Acquisition Source: count NEW visits in range by patient's source —
-  // total aligns with Customer Type Distribution's 'new' bucket.
-  // allPatients is used so patients registered before the date range still resolve.
-  const patientSourceByHn: Record<string, string> = {};
-  for (const p of allPatients ?? []) {
-    if (p.hn) patientSourceByHn[p.hn] = (p.source as string | null) || 'ไม่ระบุ';
-  }
+  // Patient Acquisition Source: count NEW visits in range by patient's source.
+  // "New" uses patient registration date (helpers built above).
   const sourceMap: Record<string, number> = {};
   for (const v of visits) {
-    if ((v.customer_type || 'returning') !== 'new') continue;
+    const createdThaiVisit = new Date(new Date(v.created_at).toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
+    const visitMk = getMonthKey(createdThaiVisit);
+    const isNew = (startDate || endDate)
+      ? isPatientNewForRange(v.hn)
+      : getCreatedMonthKey(v.hn) === visitMk;
+    if (!isNew) continue;
     const src = patientSourceByHn[v.hn] || 'ไม่ระบุ';
     sourceMap[src] = (sourceMap[src] || 0) + 1;
   }
@@ -209,6 +245,7 @@ export async function GET(req: NextRequest) {
 
   // Weekly: rolling 7 days from today, independent of user date filter
   // Also build week/month treatment maps for the toggle on Top Treatments chart
+  // "New" here = patient registered inside the same rolling 7-day window
   const weekStartBkk = new Date(nowThai); weekStartBkk.setDate(weekStartBkk.getDate() - 7);
   let weekNew = 0;
   let weekRet = 0;
@@ -221,8 +258,9 @@ export async function GET(req: NextRequest) {
     const inWeek = createdThai >= weekStartBkk && createdThai <= nowThai;
     const inMonth = getMonthKey(createdThai) === currentMonthKey;
     if (inWeek) {
-      const ct = v.customer_type || 'returning';
-      if (ct === 'new') weekNew++;
+      const pCreated = patientCreatedByHn[v.hn];
+      const isNewByPatient = pCreated ? (pCreated >= weekStartBkk && pCreated <= nowThai) : false;
+      if (isNewByPatient) weekNew++;
       else weekRet++;
       treatmentWeekMap[tn] = (treatmentWeekMap[tn] || 0) + revenue;
     }
@@ -250,16 +288,18 @@ export async function GET(req: NextRequest) {
     newRegistrations: { month: string; count: number }[];
   };
 
-  function buildInsightsBundle(windowVisits: any[], dailyAxis: { key: string; label: string }[]): InsightsBundle {
+  function buildInsightsBundle(windowVisits: any[], dailyAxis: { key: string; label: string }[], winStart: Date, winEnd: Date): InsightsBundle {
     const ctMap: Record<string, number> = {};
     const srcMap: Record<string, number> = {};
     const patientVisitCount: Record<string, number> = {};
     const pm: Record<string, { revenue: number; visits: number }> = {};
     const newVisitDailyMap: Record<string, number> = {};
     for (const v of windowVisits) {
-      const ct = v.customer_type || 'returning';
-      ctMap[ct] = (ctMap[ct] || 0) + 1;
-      if (ct === 'new') {
+      // "new" = patient registered inside this same window
+      const pCreated = patientCreatedByHn[v.hn];
+      const isNew = pCreated ? (pCreated >= winStart && pCreated <= winEnd) : false;
+      ctMap[isNew ? 'new' : 'returning'] = (ctMap[isNew ? 'new' : 'returning'] || 0) + 1;
+      if (isNew) {
         const src = patientSourceByHn[v.hn] || 'ไม่ระบุ';
         srcMap[src] = (srcMap[src] || 0) + 1;
         const t = new Date(new Date(v.created_at).toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
@@ -305,8 +345,8 @@ export async function GET(req: NextRequest) {
     monthAxis.push({ key: d.toISOString().split('T')[0], label: String(day) });
   }
 
-  const customerInsightsWeek  = buildInsightsBundle(weekVisits,  weekAxis);
-  const customerInsightsMonth = buildInsightsBundle(monthVisits, monthAxis);
+  const customerInsightsWeek  = buildInsightsBundle(weekVisits,  weekAxis,  weekStartBkk,  nowThai);
+  const customerInsightsMonth = buildInsightsBundle(monthVisits, monthAxis, monthStartBkk, monthEndBkk);
 
   const SALES_TARGET = 3600000;
 
