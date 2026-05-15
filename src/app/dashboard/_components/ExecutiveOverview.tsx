@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { DollarSign, TrendingUp, Users, UserCheck, Target, Activity, Lock } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import KpiCard, { fmt, calcPct, themeChartColors } from './KpiCard';
@@ -8,8 +9,47 @@ import ExecutiveSummary from './ExecutiveSummary';
 type Theme = { bg: string; bgDark: string; accent: string; gradient: string };
 type Props  = { data: any; theme: Theme; enabledFeatures?: string[]; hasDateFilter?: boolean };
 
+type TrendPeriod = 'week' | 'month';
+type TrendMetric = 'revenue' | 'new' | 'returning' | 'transactions';
+
+const METRIC_LABEL: Record<TrendMetric, string> = {
+  revenue: 'Revenue',
+  new: 'New Customers',
+  returning: 'Returning',
+  transactions: 'Transactions',
+};
+
+function Pill<T extends string>({ value, options, onChange }: {
+  value: T; options: { v: T; label: string }[]; onChange: (v: T) => void;
+}) {
+  return (
+    <div className="inline-flex rounded-lg bg-slate-100 p-0.5 text-[11px]">
+      {options.map(opt => (
+        <button
+          key={opt.v}
+          type="button"
+          onClick={() => onChange(opt.v)}
+          className={`px-2 py-0.5 rounded-md transition ${
+            value === opt.v
+              ? 'bg-white shadow-sm text-slate-700 font-medium'
+              : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function ExecutiveOverview({ data, theme, enabledFeatures = [], hasDateFilter = false }: Props) {
-  const { kpis, revenueTrend, topTreatments, topDoctors } = data;
+  const { kpis, revenueTrend, revenueTrendMonthly, topTreatments, topDoctors } = data;
+  const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('week');
+  const [trendMetric, setTrendMetric] = useState<TrendMetric>('revenue');
+
+  const trendData = trendPeriod === 'week' ? revenueTrend : revenueTrendMonthly;
+  const isMoneyMetric = trendMetric === 'revenue';
+  const metricLabel = METRIC_LABEL[trendMetric];
 
   const accentGradient = `linear-gradient(135deg, ${theme.accent} 0%, #f59e0b 100%)`;
   const COLORS = themeChartColors(theme);
@@ -66,17 +106,42 @@ export default function ExecutiveOverview({ data, theme, enabledFeatures = [], h
       {/* ── Charts Row (โครงสร้างเดิม) ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
-          <h3 className="text-sm font-heading font-semibold mb-4 text-slate-700">Revenue Trend</h3>
+          <div className="flex items-start justify-between gap-2 mb-4 flex-wrap">
+            <h3 className="text-sm font-heading font-semibold text-slate-700">{metricLabel} Trend</h3>
+            <div className="flex flex-col gap-1.5 items-end">
+              <Pill<TrendMetric>
+                value={trendMetric}
+                onChange={setTrendMetric}
+                options={[
+                  { v: 'revenue', label: 'Revenue' },
+                  { v: 'new', label: 'New' },
+                  { v: 'returning', label: 'Ret.' },
+                  { v: 'transactions', label: 'Trx' },
+                ]}
+              />
+              <Pill<TrendPeriod>
+                value={trendPeriod}
+                onChange={setTrendPeriod}
+                options={[
+                  { v: 'week', label: 'Week' },
+                  { v: 'month', label: 'Month' },
+                ]}
+              />
+            </div>
+          </div>
           <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={revenueTrend}>
+            <LineChart data={trendData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
               <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} />
-              <YAxis tickFormatter={v => `฿${v >= 1000 ? Math.round(v / 1000) + 'k' : v}`} tick={{ fontSize: 11, fill: '#94a3b8' }} />
+              <YAxis
+                tickFormatter={v => isMoneyMetric ? `฿${v >= 1000 ? Math.round(v / 1000) + 'k' : v}` : String(v)}
+                tick={{ fontSize: 11, fill: '#94a3b8' }}
+              />
               <Tooltip
                 contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)', fontSize: 12 }}
-                formatter={(v) => [fmt(Number(v ?? 0)), 'Revenue']}
+                formatter={(v) => [isMoneyMetric ? fmt(Number(v ?? 0)) : String(v ?? 0), metricLabel]}
               />
-              <Line type="monotone" dataKey="revenue" stroke={theme.bg} strokeWidth={2.5}
+              <Line type="monotone" dataKey={trendMetric} stroke={theme.bg} strokeWidth={2.5}
                 dot={{ r: 4, fill: theme.bg, stroke: '#fff', strokeWidth: 2 }}
                 activeDot={{ r: 6, fill: theme.bg }} />
             </LineChart>

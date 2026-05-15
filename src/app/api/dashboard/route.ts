@@ -105,6 +105,10 @@ export async function GET(req: NextRequest) {
   const dailyRevenueMap: Record<string, number> = {};
   const monthlyNew: Record<string, number> = {};
   const monthlyRet: Record<string, number> = {};
+  const monthlyTrx: Record<string, number> = {};
+  const dailyNewMap: Record<string, number> = {};
+  const dailyRetMap: Record<string, number> = {};
+  const dailyTrxMap: Record<string, number> = {};
   const treatmentMap: Record<string, number> = {};
   const doctorMap: Record<string, { revenue: number; visits: number }> = {};
   const catMonthMap: Record<string, Record<string, number>> = {};
@@ -132,8 +136,15 @@ export async function GET(req: NextRequest) {
     dailyRevenueMap[vDateStr] = (dailyRevenueMap[vDateStr] || 0) + revenue;
 
     const ct = v.customer_type || 'returning';
-    if (ct === 'new') { monthlyNew[mk] = (monthlyNew[mk] || 0) + 1; totalNew++; }
-    else { monthlyRet[mk] = (monthlyRet[mk] || 0) + 1; totalRet++; }
+    if (ct === 'new') {
+      monthlyNew[mk] = (monthlyNew[mk] || 0) + 1; totalNew++;
+      dailyNewMap[vDateStr] = (dailyNewMap[vDateStr] || 0) + 1;
+    } else {
+      monthlyRet[mk] = (monthlyRet[mk] || 0) + 1; totalRet++;
+      dailyRetMap[vDateStr] = (dailyRetMap[vDateStr] || 0) + 1;
+    }
+    monthlyTrx[mk] = (monthlyTrx[mk] || 0) + 1;
+    dailyTrxMap[vDateStr] = (dailyTrxMap[vDateStr] || 0) + 1;
     customerTypeMap[ct] = (customerTypeMap[ct] || 0) + 1;
 
     const tn = v.treatment_name ?? 'Unknown';
@@ -230,24 +241,36 @@ export async function GET(req: NextRequest) {
       conversionRate,
     },
     revenueTrend: (() => {
-      const days: { month: string; revenue: number }[] = [];
+      const days: { month: string; revenue: number; new: number; returning: number; transactions: number }[] = [];
       for (let i = 6; i >= 0; i--) {
         const d = new Date(nowThai);
         d.setDate(d.getDate() - i);
         const key = d.toISOString().split('T')[0];
         const label = `${d.getDate()}/${d.getMonth() + 1}`;
-        days.push({ month: label, revenue: dailyRevenueMap[key] || 0 });
+        days.push({
+          month: label,
+          revenue: dailyRevenueMap[key] || 0,
+          new: dailyNewMap[key] || 0,
+          returning: dailyRetMap[key] || 0,
+          transactions: dailyTrxMap[key] || 0,
+        });
       }
       return days;
     })(),
     revenueTrendMonthly: (() => {
-      const months: { month: string; revenue: number }[] = [];
+      const months: { month: string; revenue: number; new: number; returning: number; transactions: number }[] = [];
       for (let i = 11; i >= 0; i--) {
         const d = new Date(nowThai);
         d.setMonth(d.getMonth() - i, 1);
         const key = getMonthKey(d);
         const label = toLabel(key);
-        months.push({ month: label, revenue: monthlyRevenueMap[key] || 0 });
+        months.push({
+          month: label,
+          revenue: monthlyRevenueMap[key] || 0,
+          new: monthlyNew[key] || 0,
+          returning: monthlyRet[key] || 0,
+          transactions: monthlyTrx[key] || 0,
+        });
       }
       return months;
     })(),
