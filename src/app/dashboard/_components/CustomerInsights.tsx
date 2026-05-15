@@ -36,7 +36,8 @@ export default function CustomerInsights({ data, theme }: Props) {
   const customerTypeDistribution = bundle.customerType    ?? data.customerTypeDistribution ?? [];
   const acquisitionSource   = bundle.acquisitionSource   ?? data.acquisitionSource ?? [];
   const visitFrequency      = bundle.visitFrequency      ?? data.visitFrequency ?? [];
-  const topPatients         = bundle.topPatients         ?? data.topPatients ?? [];
+  // Top 10 Patients stays on the original full-range data — not affected by the page toggle
+  const topPatients         = data.topPatients ?? [];
 
   return (
     <div className="space-y-5">
