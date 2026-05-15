@@ -81,6 +81,9 @@ export default function SalesAnalytics({ data, theme }: Props) {
   const avgCards = Object.entries(catRevMap).slice(0, 4).map(([cat, { revenue, visits }]) => ({
     cat, avg: visits > 0 ? Math.round(revenue / visits) : 0,
   }));
+  const allRevenue = Object.values(catRevMap).reduce((s, x) => s + x.revenue, 0);
+  const allVisits  = Object.values(catRevMap).reduce((s, x) => s + x.visits, 0);
+  const allTreatmentAvg = allVisits > 0 ? Math.round(allRevenue / allVisits) : 0;
 
   return (
     <div className="space-y-6">
@@ -174,13 +177,13 @@ export default function SalesAnalytics({ data, theme }: Props) {
               </div>
             ))}
           </div>
-          {/* Clinic overall avg */}
-          {totalSales > 0 && (
+          {/* All-treatment average per visit */}
+          {allTreatmentAvg > 0 && (
             <div className="rounded-2xl p-4 text-white flex items-center justify-between"
               style={{ background: theme.gradient }}>
               <div>
-                <p className="text-xs text-white/70 mb-1">ค่าเฉลี่ยรวมทั้งคลินิก</p>
-                <p className="text-2xl font-heading font-black">{fmt(totalSales)}</p>
+                <p className="text-xs text-white/70 mb-1">All treatment avg/visit</p>
+                <p className="text-2xl font-heading font-black">฿{allTreatmentAvg.toLocaleString()}</p>
               </div>
               <TrendingUp size={28} className="text-white/30" />
             </div>
