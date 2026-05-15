@@ -180,15 +180,27 @@ export async function GET(req: NextRequest) {
     patientMap[hn].revenue += revenue; patientMap[hn].visits++;
   }
 
-  const sourceMap: Record<string, number> = {};
   const patientMonthMap: Record<string, number> = {};
   const visitedHNs = new Set(visits.map(v => v.hn).filter(Boolean));
 
   for (const p of patients) {
-    if (p.source) sourceMap[p.source] = (sourceMap[p.source] || 0) + 1;
     // ใช้ Bangkok timezone เพื่อให้ consistent กับ revenue grouping
     const d = new Date(new Date(p.created_at).toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
     patientMonthMap[getMonthKey(d)] = (patientMonthMap[getMonthKey(d)] || 0) + 1;
+  }
+
+  // Patient Acquisition Source: count NEW visits in range by patient's source —
+  // total aligns with Customer Type Distribution's 'new' bucket.
+  // allPatients is used so patients registered before the date range still resolve.
+  const patientSourceByHn: Record<string, string> = {};
+  for (const p of allPatients ?? []) {
+    if (p.hn) patientSourceByHn[p.hn] = (p.source as string | null) || 'ไม่ระบุ';
+  }
+  const sourceMap: Record<string, number> = {};
+  for (const v of visits) {
+    if ((v.customer_type || 'returning') !== 'new') continue;
+    const src = patientSourceByHn[v.hn] || 'ไม่ระบุ';
+    sourceMap[src] = (sourceMap[src] || 0) + 1;
   }
 
   const monthlyRevenue = monthlyRevenueMap[currentMonthKey] || 0;
