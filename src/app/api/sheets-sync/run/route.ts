@@ -134,6 +134,11 @@ async function syncVisits(clinicId: string, visRows: Record<string, string>[], f
   });
   let added = 0, updated = 0;
 
+  // Track Supabase visit IDs already matched in this sync run, so duplicate sheet
+  // rows (same hn + treatment + price + date) each get their own DB row instead
+  // of collapsing into one.
+  const usedVisitIds = new Set<string>();
+
   for (const r of visits) {
     const hn = String(r['HN'] || '').trim();
     const treatmentName = String(r['Treatment_Name'] || '').trim();
@@ -182,18 +187,22 @@ async function syncVisits(clinicId: string, visRows: Record<string, string>[], f
     if (dedupStart && dedupEnd) dedupQ = dedupQ.gte('created_at', dedupStart).lte('created_at', dedupEnd);
     const { data: candidates } = await dedupQ;
 
+    // Skip candidates already used by an earlier identical sheet row in this run,
+    // so the Nth duplicate sheet row creates a new visit instead of clobbering the same one.
+    const availableCandidates = (candidates ?? []).filter(c => !usedVisitIds.has(c.id));
+
     let existingRow: { id: string; customer_type: string } | null = null;
-    if (candidates && candidates.length > 0) {
+    if (availableCandidates.length > 0) {
       if (!hn && visitName) {
         // ถ้า HN ว่าง ให้ match ด้วย name
         // — exact match ก่อน (sync ครั้งถัดไปหลัง name ถูก set แล้ว)
         // — fallback: null-name row (row เก่าที่ยังไม่มี name → update แล้ว set name)
         // — ถ้าทุก candidate มี name แตกต่างออกไป → ถือว่าเป็นลูกค้าใหม่ → insert
-        const exactMatch  = candidates.find(c => c.name === visitName);
-        const nullMatch   = candidates.find(c => c.name === null || c.name === '');
+        const exactMatch  = availableCandidates.find(c => c.name === visitName);
+        const nullMatch   = availableCandidates.find(c => c.name === null || c.name === '');
         existingRow = exactMatch ?? nullMatch ?? null;
       } else {
-        existingRow = candidates[0];
+        existingRow = availableCandidates[0];
       }
     }
 
@@ -201,11 +210,12 @@ async function syncVisits(clinicId: string, visRows: Record<string, string>[], f
       const { created_at: _c, customer_type: _ct, ...updateFields } = row;
       const finalType = incomingCustomerType ?? existingRow.customer_type ?? 'returning';
       await supabaseAdmin.from('visits').update({ ...updateFields, customer_type: finalType }).eq('id', existingRow.id);
+      usedVisitIds.add(existingRow.id);
       updated++;
     } else {
-      const { error } = await supabaseAdmin.from('visits').insert(row);
+      const { data: inserted, error } = await supabaseAdmin.from('visits').insert(row).select('id').single();
       if (error) console.error('visit insert error:', error.message, { hn, treatmentName });
-      else added++;
+      else { if (inserted?.id) usedVisitIds.add(inserted.id); added++; }
     }
   }
   return { total: visits.length, added, updated };
