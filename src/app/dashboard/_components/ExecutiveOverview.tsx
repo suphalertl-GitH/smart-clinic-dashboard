@@ -40,6 +40,7 @@ export default function ExecutiveOverview({ data, theme, enabledFeatures = [], h
           label="New Customers"
           value={String(kpis.newCustomers)}
           change={calcPct(kpis.newCustomers, kpis.prevNewCustomers)}
+          sub={kpis.newCustomersWeek !== undefined ? `${kpis.newCustomersWeek} this week` : undefined}
           iconBg="#E6F4F4" iconColor={theme.bg}
           animClass="fade-in fade-in-d3"
         />
@@ -48,6 +49,7 @@ export default function ExecutiveOverview({ data, theme, enabledFeatures = [], h
           label="Returning"
           value={String(kpis.returning)}
           change={calcPct(kpis.returning, kpis.prevReturning)}
+          sub={kpis.returningWeek !== undefined ? `${kpis.returningWeek} this week` : undefined}
           positiveUp={false}
           iconBg="#FEF3EE" iconColor={theme.accent}
           animClass="fade-in fade-in-d4"

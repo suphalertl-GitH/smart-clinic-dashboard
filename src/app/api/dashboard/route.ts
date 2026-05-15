@@ -183,6 +183,19 @@ export async function GET(req: NextRequest) {
   const prevMonthRevenue = monthlyRevenueMap[prevMonthKey] || 0;
   const conversionRate = currentMonthVisits > 0 ? (currentMonthCompleted / currentMonthVisits) * 100 : 0;
 
+  // Weekly: rolling 7 days from today, independent of user date filter
+  const weekStartBkk = new Date(nowThai); weekStartBkk.setDate(weekStartBkk.getDate() - 7);
+  let weekNew = 0;
+  let weekRet = 0;
+  for (const v of allVisits ?? []) {
+    const createdThai = new Date(new Date(v.created_at).toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
+    if (createdThai >= weekStartBkk && createdThai <= nowThai) {
+      const ct = v.customer_type || 'returning';
+      if (ct === 'new') weekNew++;
+      else weekRet++;
+    }
+  }
+
   const SALES_TARGET = 3600000;
 
   const catTotals: Record<string, number> = { Botox: 0, Filler: 0, 'Skin quality': 0, EBD: 0, Surgery: 0, Other: 0 };
@@ -209,8 +222,10 @@ export async function GET(req: NextRequest) {
       prevMonthRevenue,
       newCustomers: (startDate || endDate) ? totalNew : (monthlyNew[currentMonthKey] || 0),
       prevNewCustomers: monthlyNew[prevMonthKey] || 0,
+      newCustomersWeek: weekNew,
       returning: (startDate || endDate) ? totalRet : (monthlyRet[currentMonthKey] || 0),
       prevReturning: monthlyRet[prevMonthKey] || 0,
+      returningWeek: weekRet,
       conversionRate,
     },
     revenueTrend: (() => {

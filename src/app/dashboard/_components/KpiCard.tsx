@@ -60,6 +60,7 @@ export default function KpiCard({
   variant = 'white',
   gradient,          // CSS gradient for colored cards
   badge,             // small badge text (e.g. "+12%" or "วันนี้")
+  sub,               // small secondary value shown under main value (e.g. "12 this week")
   animClass,         // e.g. "fade-in fade-in-d1"
 }: {
   icon: React.ReactNode;
@@ -72,6 +73,7 @@ export default function KpiCard({
   variant?: 'white' | 'colored';
   gradient?: string;
   badge?: string;
+  sub?: string;
   animClass?: string;
 }) {
   const isUp   = (change ?? 0) >= 0;
@@ -126,6 +128,12 @@ export default function KpiCard({
       <p className={`text-sm mt-0.5 ${colored ? 'text-white/60' : 'text-slate-500'}`}>
         {label}
       </p>
+      {/* Sub (secondary value, e.g. weekly) */}
+      {sub ? (
+        <p className={`text-xs mt-1 ${colored ? 'text-white/50' : 'text-slate-400'}`}>
+          {sub}
+        </p>
+      ) : null}
     </div>
   );
 }
